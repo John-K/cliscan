@@ -1,0 +1,14 @@
+//
+// Prefix header for all source files of the 'cliscan' target in the 'cliscan' project
+//
+
+#ifdef __OBJC__
+    #import <Cocoa/Cocoa.h>
+#endif
+
+#define kISO8601DateFormat @"yyyy-MM-dd'T'HH:mm:ss.SSS"
+
+static int ddLogLevel = 0;
+
+#define DDLogVerbose(frmt, ...) if (ddLogLevel != 0) NSLog(frmt, ##__VA_ARGS__);
+#define DDLogError(frmt, ...) if (ddLogLevel != 0) NSLog(frmt, ##__VA_ARGS__);
