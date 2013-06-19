@@ -570,8 +570,9 @@ didDiscoverPeripheral:(CBPeripheral *)peripheral
     advertisementData:(NSDictionary *)advertisementData
                  RSSI:(NSNumber *)RSSI {
   
-  DDLogVerbose(@"didDiscoverPeripheral %@",[peripheral UUID]);
-  
+  DDLogVerbose(@"didDiscoverPeripheral %@\n with RSSI %@\nand data %@\n\n",[peripheral UUID], RSSI, advertisementData);
+
+  /*
   NSSet *set;
   NSString *UUID;
   
@@ -592,7 +593,7 @@ didDiscoverPeripheral:(CBPeripheral *)peripheral
     }
     
   }
-  
+  */
 }
 
 - (void)centralManager:(CBCentralManager *)central
