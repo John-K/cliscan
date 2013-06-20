@@ -10,7 +10,8 @@
 #import <IOBluetooth/IOBluetooth.h>
 
 
-#define kHelloServiceUUID @"00001e3f-1212-efde-1523-785feabcd123"
+#define kHelloServiceUUID   @"00001e3f-1212-efde-1523-785feabcd123"
+#define kHelloDevUUID       @"2fe3a7e4-8355-40a6-89d5-4e7b3f29c73e"
 
 @interface HECentralController : NSObject <CBCentralManagerDelegate,CBPeripheralDelegate>
 

@@ -84,7 +84,6 @@
 		B0359A8D170BC4F300F58D36 = {
 			isa = PBXGroup;
 			children = (
-				B0359AEF170BC6A600F58D36 /* IOBluetooth.framework */,
 				B0359AA2170BC4F300F58D36 /* cliscan */,
 				B0359AC2170BC4F400F58D36 /* cliscanTests */,
 				B0359A9B170BC4F300F58D36 /* Frameworks */,
@@ -104,6 +103,7 @@
 		B0359A9B170BC4F300F58D36 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				B0359AEF170BC6A600F58D36 /* IOBluetooth.framework */,
 				B0359A9C170BC4F300F58D36 /* Cocoa.framework */,
 				B0359ABD170BC4F400F58D36 /* SenTestingKit.framework */,
 				B0359A9E170BC4F300F58D36 /* Other Frameworks */,
@@ -455,6 +455,7 @@
 				B0359ACF170BC4F400F58D36 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
 		};
 		B0359AD0170BC4F400F58D36 /* Build configuration list for PBXNativeTarget "cliscanTests" */ = {
 			isa = XCConfigurationList;
@@ -463,6 +464,7 @@
 				B0359AD2170BC4F400F58D36 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
 	};

@@ -14,20 +14,20 @@
 //Convert a C array of string pointers to an NSArray of NSStrings
 NSArray* arrayWithStrings(const char *arr[],int len) {
   
-  NSMutableArray *array = [NSMutableArray arrayWithCapacity:len];
+    NSMutableArray *array = [NSMutableArray arrayWithCapacity:len];
   
-  NSString *str;
+    NSString *str;
   
-  for (int i =0; i < len; i++) {
+    for (int i =0; i < len; i++) {
 
-    str = [NSString stringWithCString:arr[i]
-                             encoding:NSUTF8StringEncoding];
+      str = [NSString stringWithCString:arr[i]
+                               encoding:NSUTF8StringEncoding];
     
-    [array addObject:str];
+      [array addObject:str];
     
-  }
+    }
   
-  return [[array copy] autorelease];
+    return [[array copy] autorelease];
 }
 
 @interface HEAppDelegate : NSObject <NSApplicationDelegate>
@@ -39,41 +39,40 @@ NSArray* arrayWithStrings(const char *arr[],int len) {
 @implementation HEAppDelegate
 
 - (HECentralController *)controller {
-  if (!_controller) {
-    _controller = [[HECentralController alloc] init];
-  }
-  return _controller;
+    if (!_controller) {
+      _controller = [[HECentralController alloc] init];
+    }
+    return _controller;
 }
 
 - (void)dealloc {
   
-  [_arguments release];
-  [_controller release];
+    [_arguments release];
+    [_controller release];
   
-  [super dealloc];
+    [super dealloc];
 }
 
 - (void)applicationDidFinishLaunching:(NSNotification *)notification {
   NSArray *arguments;
   
-  arguments = [self arguments];
-  arguments = @[
-                @"/Desktop Scanner",
-                @"-t",
-                @"10",
-                @"-v"];
-  /*
-  arguments = @[
+    arguments = [self arguments];
+    arguments = @[
                 @"/Desktop Scanner",
                 @"-d",
-                @"proto_band_A",
-                @"-s",
-                @"hello",
-                @"-c",
-                @"1e42"
-                ];
-   */
-  [[self controller] parseArguments:arguments];
+                @"iphone_dev",
+                @"-v"];
+    /*
+   arguments = @[
+                    @"/Desktop Scanner",
+                    @"-d",
+                    @"proto_band_A",
+                    @"-s",
+                    @"hello",
+                    @"-c",
+                    @"1e42"];
+    */
+    [[self controller] parseArguments:arguments];
   
 }
 
@@ -82,21 +81,21 @@ NSArray* arrayWithStrings(const char *arr[],int len) {
 int main(int argc, const char * argv[])
 {
 
-  @autoreleasepool {
+    @autoreleasepool {
     
-    HEAppDelegate *delegate;
+        HEAppDelegate *delegate;
     
-    delegate = [[HEAppDelegate alloc] init];
+        delegate = [[HEAppDelegate alloc] init];
     
-    [delegate setArguments:arrayWithStrings(argv, argc)];
+        [delegate setArguments:arrayWithStrings(argv, argc)];
     
-    [[NSApplication sharedApplication] setDelegate:delegate];
+        [[NSApplication sharedApplication] setDelegate:delegate];
         
-    [NSApp run];
+        [NSApp run];
     
-    [delegate release];
-  }
+        [delegate release];
+    }
   
-  return 0;
+    return 0;
 }
 
