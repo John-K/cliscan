@@ -37,8 +37,6 @@ typedef void(^HEArrayBlock)(NSArray *array);
 
 @property (nonatomic,strong) NSDateFormatter *dateFormatter;
 
-@property (nonatomic,copy) NSSet *discoveredPeripheralUUIDs;
-
 @property (nonatomic,assign,getter = isScanning) BOOL scanning;
 
 @property (nonatomic,assign,getter = isInteractive) BOOL interactive;
@@ -282,14 +280,17 @@ typedef void(^HEArrayBlock)(NSArray *array);
 {
     [self writeLine:[NSString stringWithFormat:@"number of discovered peripherals: %ld", self.discoveredPeripherals.count]];
     
-    [self writeLine:@"select which device to explore"];
     for (int i = 0; i < self.discoveredPeripherals.count; i++) {
         [self writeLine:[NSString stringWithFormat:@"%d: %@", i, [NSString stringWithCFUUID:[[self.discoveredPeripherals objectAtIndex:i] UUID]]]];
     }
+    
     int userNumInput;
+    printf("select which device to explore: ");
     scanf("%d", &userNumInput);
     [self writeLine:[NSString stringWithFormat:@"Connecting to %d: %@", userNumInput, @"devicename"]];
-
+    
+    [self.centralManager connectPeripheral:self.discoveredPeripherals[userNumInput] options:nil];
+    
 }
 
 - (void)startScanForDuration:(CGFloat)duration {
@@ -302,7 +303,6 @@ typedef void(^HEArrayBlock)(NSArray *array);
             [peripheral name],
             [NSString stringWithCFUUID:[peripheral UUID]]
          ]];
-    
     }];
   
     DDLogVerbose(@"Started %.0fs Scan",duration);
@@ -576,23 +576,12 @@ didDiscoverPeripheral:(CBPeripheral *)peripheral
                  RSSI:(NSNumber *)RSSI {
   
     DDLogVerbose(@"didDiscoverPeripheral %@\n with RSSI %@\nand data %@\n\n",[peripheral UUID], RSSI, advertisementData);
-
-    NSSet *set;
     NSString *UUID;
   
     UUID = [NSString stringWithCFUUID:[peripheral UUID]];
-  
-    if (!(set=[self discoveredPeripheralUUIDs])) {
-        set = [NSSet set];
-    }
-  
-    if (![set member:UUID]) {
-        set = [set setByAddingObject:UUID];
+    if (![[self discoveredPeripherals] containsObject: peripheral]) {
         [self.discoveredPeripherals addObject:peripheral];
-        
-        //update the cache
-        [self setDiscoveredPeripheralUUIDs:set];
-        
+
         if ([self didDiscoverPeripheralBlock]) {
             [self didDiscoverPeripheralBlock](peripheral);
         }
@@ -614,7 +603,7 @@ didRetrievePeripherals:(NSArray *)peripherals {
   didConnectPeripheral:(CBPeripheral *)peripheral {
 
     DDLogVerbose(@"didConnectPeripheral %@",[[peripheral name] copy]);
-  
+    
     if ([self didConnectPeripheralBlock]) {
         [self didConnectPeripheralBlock](peripheral);
     }

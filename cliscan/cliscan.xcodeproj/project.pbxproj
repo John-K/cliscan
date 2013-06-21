@@ -20,7 +20,6 @@
 		B0359AEC170BC5CA00F58D36 /* CScanner.1 in Resources */ = {isa = PBXBuildFile; fileRef = B0359AEB170BC5CA00F58D36 /* CScanner.1 */; };
 		B0359AEE170BC5EC00F58D36 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = B0359AED170BC5EC00F58D36 /* main.m */; settings = {COMPILER_FLAGS = "-fno-objc-arc"; }; };
 		B0359AF0170BC6A600F58D36 /* IOBluetooth.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B0359AEF170BC6A600F58D36 /* IOBluetooth.framework */; };
-		B05AFBEC1773D30000B38233 /* HEBLEEnvironment.m in Sources */ = {isa = PBXBuildFile; fileRef = B05AFBEB1773D30000B38233 /* HEBLEEnvironment.m */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -58,8 +57,6 @@
 		B0359AEB170BC5CA00F58D36 /* CScanner.1 */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.man; path = CScanner.1; sourceTree = "<group>"; };
 		B0359AED170BC5EC00F58D36 /* main.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
 		B0359AEF170BC6A600F58D36 /* IOBluetooth.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = IOBluetooth.framework; path = System/Library/Frameworks/IOBluetooth.framework; sourceTree = SDKROOT; };
-		B05AFBEA1773D30000B38233 /* HEBLEEnvironment.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = HEBLEEnvironment.h; sourceTree = "<group>"; };
-		B05AFBEB1773D30000B38233 /* HEBLEEnvironment.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = HEBLEEnvironment.m; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -130,7 +127,6 @@
 				B0359AEB170BC5CA00F58D36 /* CScanner.1 */,
 				B0359AE1170BC5B700F58D36 /* HECentralController.h */,
 				B0359AE2170BC5B700F58D36 /* HECentralController.m */,
-				B05AFBED1773D30700B38233 /* Model */,
 				B0359AE3170BC5B700F58D36 /* NSData+hex.h */,
 				B0359AE4170BC5B700F58D36 /* NSData+hex.m */,
 				B0359AE5170BC5B700F58D36 /* NSString+CFUUID.h */,
@@ -169,15 +165,6 @@
 				B0359AC5170BC4F400F58D36 /* InfoPlist.strings */,
 			);
 			name = "Supporting Files";
-			sourceTree = "<group>";
-		};
-		B05AFBED1773D30700B38233 /* Model */ = {
-			isa = PBXGroup;
-			children = (
-				B05AFBEB1773D30000B38233 /* HEBLEEnvironment.m */,
-				B05AFBEA1773D30000B38233 /* HEBLEEnvironment.h */,
-			);
-			name = Model;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -293,7 +280,6 @@
 				B0359AE8170BC5B700F58D36 /* NSData+hex.m in Sources */,
 				B0359AE9170BC5B700F58D36 /* NSString+CFUUID.m in Sources */,
 				B0359AEE170BC5EC00F58D36 /* main.m in Sources */,
-				B05AFBEC1773D30000B38233 /* HEBLEEnvironment.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
