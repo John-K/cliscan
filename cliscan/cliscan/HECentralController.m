@@ -33,11 +33,11 @@ typedef void(^HEArrayBlock)(NSArray *array);
 
 @property (nonatomic,strong) CBPeripheral *peripheral;
 
+@property (nonatomic,strong) NSMutableArray *discoveredPeripherals;
+
 @property (nonatomic,strong) NSDateFormatter *dateFormatter;
 
 @property (nonatomic,copy) NSSet *discoveredPeripheralUUIDs;
-
-@property (nonatomic,copy) NSMutableDictionary *UUIDToDeviceNameMap;
 
 @property (nonatomic,assign,getter = isScanning) BOOL scanning;
 
@@ -124,11 +124,11 @@ typedef void(^HEArrayBlock)(NSArray *array);
     return _dateFormatter;
 }
 
-- (NSMutableDictionary *)UUIDToDeviceNameMap {
-    if (!_UUIDToDeviceNameMap) {
-        _UUIDToDeviceNameMap = [[NSMutableDictionary alloc] init];
+- (NSMutableArray *)discoveredPeripherals {
+    if (!_discoveredPeripherals) {
+        _discoveredPeripherals = [[NSMutableArray alloc] init];
     }
-    return _UUIDToDeviceNameMap;
+    return _discoveredPeripherals;
 }
 
 #pragma mark - helper methods
@@ -260,7 +260,6 @@ typedef void(^HEArrayBlock)(NSArray *array);
   
     [self setDidConnectPeripheralBlock:aBlock];
   
-  
     [self setDidDiscoverPeripheralBlock:^(CBPeripheral *peripheral){
         //Find a peripheral with that name
         if ([[peripheral name] isEqualToString:aDeviceName] && ![weakSelf peripheral]) {
@@ -281,15 +280,16 @@ typedef void(^HEArrayBlock)(NSArray *array);
 
 - (void) presentDevices
 {
-    NSEnumerator *enumerator = [[self discoveredPeripheralUUIDs] objectEnumerator];
-    id value;
-    while ((value = [enumerator nextObject])) {
-        NSLog(@"%@", value);
-    }
+    [self writeLine:[NSString stringWithFormat:@"number of discovered peripherals: %ld", self.discoveredPeripherals.count]];
     
-    for (NSString* key in self.UUIDToDeviceNameMap) {
-        NSLog(@"%@", self.UUIDToDeviceNameMap[key]);
+    [self writeLine:@"select which device to explore"];
+    for (int i = 0; i < self.discoveredPeripherals.count; i++) {
+        [self writeLine:[NSString stringWithFormat:@"%d: %@", i, [NSString stringWithCFUUID:[[self.discoveredPeripherals objectAtIndex:i] UUID]]]];
     }
+    int userNumInput;
+    scanf("%d", &userNumInput);
+    [self writeLine:[NSString stringWithFormat:@"Connecting to %d: %@", userNumInput, @"devicename"]];
+
 }
 
 - (void)startScanForDuration:(CGFloat)duration {
@@ -588,7 +588,7 @@ didDiscoverPeripheral:(CBPeripheral *)peripheral
   
     if (![set member:UUID]) {
         set = [set setByAddingObject:UUID];
-        self.UUIDToDeviceNameMap[UUID] = advertisementData;
+        [self.discoveredPeripherals addObject:peripheral];
         
         //update the cache
         [self setDiscoveredPeripheralUUIDs:set];

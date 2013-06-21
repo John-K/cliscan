@@ -10,4 +10,19 @@
 
 @implementation HEBLEEnvironment
 
+- (id)init
+{
+    self = [super init];
+    
+    if (self) {
+        NSLog(@"created");
+    }
+    
+    return self;
+}
+
+- (void)addDiscoveredPeripheralUUID:(NSString *)UUID{
+    return;
+}
+
 @end
