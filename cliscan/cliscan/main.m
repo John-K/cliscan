@@ -59,8 +59,9 @@ NSArray* arrayWithStrings(const char *arr[],int len) {
     arguments = [self arguments];
     arguments = @[
                 @"/Desktop Scanner",
-                @"-d",
-                @"iphone_dev",
+                @"-i",
+                @"-t",
+                @"10",
                 @"-v"];
     /*
    arguments = @[

@@ -37,7 +37,11 @@ typedef void(^HEArrayBlock)(NSArray *array);
 
 @property (nonatomic,copy) NSSet *discoveredPeripheralUUIDs;
 
+@property (nonatomic,copy) NSMutableDictionary *UUIDToDeviceNameMap;
+
 @property (nonatomic,assign,getter = isScanning) BOOL scanning;
+
+@property (nonatomic,assign,getter = isInteractive) BOOL interactive;
 
 @property (nonatomic,assign) double timeout;
 
@@ -120,6 +124,13 @@ typedef void(^HEArrayBlock)(NSArray *array);
     return _dateFormatter;
 }
 
+- (NSMutableDictionary *)UUIDToDeviceNameMap {
+    if (!_UUIDToDeviceNameMap) {
+        _UUIDToDeviceNameMap = [[NSMutableDictionary alloc] init];
+    }
+    return _UUIDToDeviceNameMap;
+}
+
 #pragma mark - helper methods
 - (void)parseArguments:(NSArray *)arguments {
   
@@ -128,7 +139,7 @@ typedef void(^HEArrayBlock)(NSArray *array);
     NSString *service;
   
     BOOL subscribe = NO;
-  
+    self.interactive = NO;
     int c;
     int argc;
   
@@ -164,8 +175,7 @@ typedef void(^HEArrayBlock)(NSArray *array);
                 break;
             case 't':
                 self.timeout = [[NSString stringWithCString:optarg
-                                           encoding:NSUTF8StringEncoding] doubleValue];
-
+                                                   encoding:NSUTF8StringEncoding] doubleValue];
                 break;
             case 'h':
         
@@ -175,7 +185,12 @@ typedef void(^HEArrayBlock)(NSArray *array);
                 ddLogLevel = 1;
                 break;
             case 'i':
+                //enable interactive mode
+                //overrides all other characteristics
+                self.interactive = YES;
                 break;
+            case '?':
+                
             default:
                 exit(EXIT_FAILURE);
                 break;
@@ -187,8 +202,11 @@ typedef void(^HEArrayBlock)(NSArray *array);
     [self writeLine:@"You cannot use the timeout param if you are not performing a scan"];
     exit(EXIT_FAILURE);
     }
-
-    if ( deviceName && service && characteristic && subscribe ){
+    
+    if (self.interactive) {
+        NSLog(@"entering interactive mode");
+        [self startScanForDuration:[self timeout]];
+    } else if ( deviceName && service && characteristic && subscribe ){
         self.timeout = UINT16_MAX;
         [self subscribeToCharacteristics:characteristic
                                  service:service
@@ -260,6 +278,20 @@ typedef void(^HEArrayBlock)(NSArray *array);
 }
 
 #pragma mark -
+
+- (void) presentDevices
+{
+    NSEnumerator *enumerator = [[self discoveredPeripheralUUIDs] objectEnumerator];
+    id value;
+    while ((value = [enumerator nextObject])) {
+        NSLog(@"%@", value);
+    }
+    
+    for (NSString* key in self.UUIDToDeviceNameMap) {
+        NSLog(@"%@", self.UUIDToDeviceNameMap[key]);
+    }
+}
+
 - (void)startScanForDuration:(CGFloat)duration {
   
     __weak id weakSelf = self;
@@ -277,8 +309,12 @@ typedef void(^HEArrayBlock)(NSArray *array);
     [self scanForDuration:duration
                 withBlock:^{
                     DDLogVerbose(@"Stopped Scan");
+                    if ([self isInteractive]) {
+                        [self presentDevices];
+                    }
                 }];
 }
+
 
 - (void)listServicesForDeviceNamed:(NSString *)aDevice {
   
@@ -552,10 +588,11 @@ didDiscoverPeripheral:(CBPeripheral *)peripheral
   
     if (![set member:UUID]) {
         set = [set setByAddingObject:UUID];
-
+        self.UUIDToDeviceNameMap[UUID] = advertisementData;
+        
         //update the cache
         [self setDiscoveredPeripheralUUIDs:set];
-    
+        
         if ([self didDiscoverPeripheralBlock]) {
             [self didDiscoverPeripheralBlock](peripheral);
         }

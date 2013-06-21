@@ -35,5 +35,4 @@
 - (void)subscribeToCharacteristics:(NSString *)aCharacteristic
                            service:(NSString *)aService
                        deviceNamed:(NSString*)aDevice;
-
 @end
