@@ -64,15 +64,15 @@ NSArray* arrayWithStrings(const char *arr[],int len) {
                 @"3",
                 @"-v"];
     /*
-   arguments = @[
-                    @"/Desktop Scanner",
-                    @"-d",
-                    @"proto_band_A",
-                    @"-s",
-                    @"hello",
-                    @"-c",
-                    @"1e42"];
-    */
+    arguments = @[
+                  @"/Desktop Scanner",
+                  @"-d",
+                  @"iphone_dev",
+                  @"-s",
+                  @"dev",
+                  @"-v"];
+     */
+    
     [[self controller] parseArguments:arguments];
   
 }
@@ -99,4 +99,3 @@ int main(int argc, const char * argv[])
   
     return 0;
 }
-

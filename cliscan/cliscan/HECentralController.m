@@ -16,7 +16,6 @@
 typedef void(^HEPeripheralBlock)(CBPeripheral *peripheral);
 typedef void(^HEServiceBlock)(CBService *service);
 typedef void(^HECharacteristicBlock)(CBCharacteristic *characteristic);
-
 typedef void(^HEArrayBlock)(NSArray *array);
 
 @interface HECentralController ()
@@ -28,19 +27,13 @@ typedef void(^HEArrayBlock)(NSArray *array);
 @property (nonatomic,copy) HEPeripheralBlock didDiscoverPeripheralBlock;
 @property (nonatomic,copy) HEServiceBlock didDiscoverCharacteristicsBlock;
 @property (nonatomic,copy) HECharacteristicBlock didUpdateCharacteristicValueBlock;
-
 @property (nonatomic,copy) HEArrayBlock didRetrievePeripheralsBlock;
 
 @property (nonatomic,strong) CBPeripheral *peripheral;
-
 @property (nonatomic,strong) NSMutableArray *discoveredPeripherals;
-
 @property (nonatomic,strong) NSDateFormatter *dateFormatter;
-
 @property (nonatomic,assign,getter = isScanning) BOOL scanning;
-
 @property (nonatomic,assign,getter = isInteractive) BOOL interactive;
-
 @property (nonatomic,assign) double timeout;
 
 @end
@@ -170,6 +163,9 @@ typedef void(^HEArrayBlock)(NSArray *array);
                 if ([service isEqualToString:@"hello"]) {
                     service = kHelloServiceUUID; //Aliased UUID string
                 }
+                if ([service isEqualToString:@"dev"]) {
+                    service = kHelloDevUUID; //Aliased UUID string
+                }
                 break;
             case 't':
                 self.timeout = [[NSString stringWithCString:optarg
@@ -178,6 +174,7 @@ typedef void(^HEArrayBlock)(NSArray *array);
             case 'h':
         
                 [HECentralController writeHelp];
+                printf("%s %d", __FUNCTION__, __LINE__);
                 exit(EXIT_SUCCESS);
             case 'v':
                 ddLogLevel = 1;
@@ -190,6 +187,7 @@ typedef void(^HEArrayBlock)(NSArray *array);
             case '?':
                 
             default:
+                printf("%s %d", __FUNCTION__, __LINE__);
                 exit(EXIT_FAILURE);
                 break;
         }
@@ -198,6 +196,7 @@ typedef void(^HEArrayBlock)(NSArray *array);
   
     if ((deviceName || service || characteristic) && [self timeout] != 15.0f ) {
     [self writeLine:@"You cannot use the timeout param if you are not performing a scan"];
+    printf("%s %d", __FUNCTION__, __LINE__);
     exit(EXIT_FAILURE);
     }
     
@@ -221,19 +220,20 @@ typedef void(^HEArrayBlock)(NSArray *array);
     } else {
         [self startScanForDuration:[self timeout]];
     }
-  
+    
+    /*
     dispatch_time_t popTime = dispatch_time(DISPATCH_TIME_NOW, (int64_t)([self timeout] * NSEC_PER_SEC));
     dispatch_after(popTime, dispatch_get_main_queue(), ^(void){
         exit(EXIT_FAILURE);
     });
-
+     */
     free(argv);
 }
 
 - (void)scanForDuration:(CGFloat)duration
               withBlock:(dispatch_block_t)aBlock {
   
-    __unsafe_unretained id weakSelf = self;
+    __weak id weakSelf = self;
   
     [[self centralManager] scanForPeripheralsWithServices:nil
                                                   options:@{CBCentralManagerScanOptionAllowDuplicatesKey:@NO}];
@@ -278,6 +278,8 @@ typedef void(^HEArrayBlock)(NSArray *array);
 
 - (void) presentDevices
 {
+    __weak id weakSelf = self;
+
     [self writeLine:[NSString stringWithFormat:@"number of discovered peripherals: %ld", self.discoveredPeripherals.count]];
     
     for (int i = 0; i < self.discoveredPeripherals.count; i++) {
@@ -287,10 +289,22 @@ typedef void(^HEArrayBlock)(NSArray *array);
     int userNumInput;
     printf("select which device to explore: ");
     scanf("%d", &userNumInput);
-    [self writeLine:[NSString stringWithFormat:@"Connecting to %d: %@", userNumInput, @"devicename"]];
+    [self writeLine:[NSString stringWithFormat:@"Connecting to %d: %@", userNumInput, [[self.discoveredPeripherals objectAtIndex:userNumInput] name]]];
     
     [self.centralManager connectPeripheral:self.discoveredPeripherals[userNumInput] options:nil];
     
+    [self setDidConnectPeripheralBlock:^(CBPeripheral *peripheral){
+        [weakSelf setDidDiscoverServicesBlock:^(CBPeripheral *peripheral){
+            
+            for (CBService *service in [peripheral services]) {
+                [weakSelf writeLine:[[[service UUID] data] hexString]];
+            }
+            printf("%s %d", __FUNCTION__, __LINE__);
+            exit(EXIT_SUCCESS);
+        }];
+        [peripheral discoverServices:nil];
+        
+    }];
 }
 
 - (void)startScanForDuration:(CGFloat)duration {
@@ -298,7 +312,6 @@ typedef void(^HEArrayBlock)(NSArray *array);
     __weak id weakSelf = self;
   
     [self setDidDiscoverPeripheralBlock:^(CBPeripheral *peripheral){
-    
         [weakSelf writeColumns:@[
             [peripheral name],
             [NSString stringWithCFUUID:[peripheral UUID]]
@@ -331,7 +344,7 @@ typedef void(^HEArrayBlock)(NSArray *array);
         for (CBService *service in [peripheral services]) {
             [weakSelf writeLine:[[[service UUID] data] hexString]];
         }
-    
+        printf("%s %d", __FUNCTION__, __LINE__);
         exit(EXIT_SUCCESS);
     }];
   
@@ -372,7 +385,8 @@ typedef void(^HEArrayBlock)(NSArray *array);
         for (CBCharacteristic *characteristic in [service characteristics]) {
             [weakSelf writeLine:[[[characteristic UUID] data] hexString]];
         }
-    
+        
+        printf("%s %d", __FUNCTION__, __LINE__);
         exit(EXIT_SUCCESS);
     }];
   
@@ -429,6 +443,8 @@ typedef void(^HEArrayBlock)(NSArray *array);
          [[weakSelf dateFormatter] stringFromDate:[NSDate date]],
          [[characteristic value] hexString],
          ]];
+        
+        printf("%s %d", __FUNCTION__, __LINE__);
         exit(EXIT_SUCCESS);
     }];
   
@@ -506,46 +522,9 @@ typedef void(^HEArrayBlock)(NSArray *array);
 }
 
 
-#pragma mark - CBPeripheralDelegate
-- (void)peripheral:(CBPeripheral *)peripheral
-didDiscoverServices:(NSError *)error {
-    DDLogVerbose(@"didDiscoverServices");
-    if (error){
-        DDLogError(@"didDiscoverServices %@",error);
-    }
-  
-    if ([self didDiscoverServicesBlock] && !error) {
-        [self didDiscoverServicesBlock](peripheral);
-    }
-}
-
-- (void)peripheral:(CBPeripheral *)peripheral
-didDiscoverCharacteristicsForService:(CBService *)service
-             error:(NSError *)error {
-    DDLogVerbose(@"didDiscoverCharacteristicsForService");
-    if (error){
-        DDLogError(@"didDiscoverCharacteristicsForService %@",error);
-    }
-  
-    if ([self didDiscoverCharacteristicsBlock] && !error) {
-        [self didDiscoverCharacteristicsBlock](service);
-    }
-}
-
-- (void)peripheral:(CBPeripheral *)peripheral
-didUpdateValueForCharacteristic:(CBCharacteristic *)characteristic
-             error:(NSError *)error {
-    DDLogVerbose(@"didUpdateValueForCharacteristic");
-    if (error){
-        DDLogError(@"didUpdateValueForCharacteristic %@",error);
-    }
-  
-    if ([self didUpdateCharacteristicValueBlock] && !error) {
-        [self didUpdateCharacteristicValueBlock](characteristic);
-    }
-}
 
 #pragma mark - CBCentralManagerDelegate
+
 - (void)centralManagerDidUpdateState:(CBCentralManager *)central {
   
     switch ([central state]) {
@@ -619,7 +598,49 @@ didFailToConnectPeripheral:(CBPeripheral *)peripheral
 didDisconnectPeripheral:(CBPeripheral *)peripheral
                  error:(NSError *)error {
     DDLogVerbose(@"didDisconnectPeripheral %@ %@",[peripheral name],error);
+    printf("%s %d", __FUNCTION__, __LINE__);
     exit(EXIT_FAILURE);
+}
+
+
+#pragma mark - CBPeripheralDelegate
+
+- (void)peripheral:(CBPeripheral *)peripheral
+didDiscoverServices:(NSError *)error {
+    DDLogVerbose(@"didDiscoverServices");
+    if (error){
+        DDLogError(@"didDiscoverServices %@",error);
+    }
+    
+    if ([self didDiscoverServicesBlock] && !error) {
+        [self didDiscoverServicesBlock](peripheral);
+    }
+}
+
+- (void)peripheral:(CBPeripheral *)peripheral
+didDiscoverCharacteristicsForService:(CBService *)service
+             error:(NSError *)error {
+    DDLogVerbose(@"didDiscoverCharacteristicsForService");
+    if (error){
+        DDLogError(@"didDiscoverCharacteristicsForService %@",error);
+    }
+    
+    if ([self didDiscoverCharacteristicsBlock] && !error) {
+        [self didDiscoverCharacteristicsBlock](service);
+    }
+}
+
+- (void)peripheral:(CBPeripheral *)peripheral
+didUpdateValueForCharacteristic:(CBCharacteristic *)characteristic
+             error:(NSError *)error {
+    DDLogVerbose(@"didUpdateValueForCharacteristic");
+    if (error){
+        DDLogError(@"didUpdateValueForCharacteristic %@",error);
+    }
+    
+    if ([self didUpdateCharacteristicValueBlock] && !error) {
+        [self didUpdateCharacteristicValueBlock](characteristic);
+    }
 }
 
 @end
