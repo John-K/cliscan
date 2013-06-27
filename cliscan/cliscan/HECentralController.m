@@ -221,12 +221,6 @@ typedef void(^HEArrayBlock)(NSArray *array);
         [self startScanForDuration:[self timeout]];
     }
     
-    /*
-    dispatch_time_t popTime = dispatch_time(DISPATCH_TIME_NOW, (int64_t)([self timeout] * NSEC_PER_SEC));
-    dispatch_after(popTime, dispatch_get_main_queue(), ^(void){
-        exit(EXIT_FAILURE);
-    });
-     */
     free(argv);
 }
 
@@ -283,7 +277,7 @@ typedef void(^HEArrayBlock)(NSArray *array);
     [self writeLine:[NSString stringWithFormat:@"number of discovered peripherals: %ld", self.discoveredPeripherals.count]];
     
     for (int i = 0; i < self.discoveredPeripherals.count; i++) {
-        [self writeLine:[NSString stringWithFormat:@"%d: %@", i, [NSString stringWithCFUUID:[[self.discoveredPeripherals objectAtIndex:i] UUID]]]];
+        [self writeLine:[NSString stringWithFormat:@"%d: %@", i, [[self.discoveredPeripherals objectAtIndex:i] name]]];
     }
     
     int userNumInput;
@@ -294,16 +288,39 @@ typedef void(^HEArrayBlock)(NSArray *array);
     [self.centralManager connectPeripheral:self.discoveredPeripherals[userNumInput] options:nil];
     
     [self setDidConnectPeripheralBlock:^(CBPeripheral *peripheral){
-        [weakSelf setDidDiscoverServicesBlock:^(CBPeripheral *peripheral){
-            
-            for (CBService *service in [peripheral services]) {
-                [weakSelf writeLine:[[[service UUID] data] hexString]];
-            }
-            printf("%s %d", __FUNCTION__, __LINE__);
-            exit(EXIT_SUCCESS);
-        }];
-        [peripheral discoverServices:nil];
         
+        [weakSelf setPeripheral:peripheral];
+        
+        [peripheral setDelegate:weakSelf];
+        
+        [weakSelf setDidDiscoverServicesBlock:^(CBPeripheral *peripheral){
+            for (CBService *service in [peripheral services]) {
+                [peripheral discoverCharacteristics:nil forService:service];
+            }
+        }];
+        
+        [weakSelf setDidDiscoverCharacteristicsBlock:^(CBService *service){
+            for (CBCharacteristic *characteristic in [service characteristics]) {
+                if (characteristic.properties & CBCharacteristicPropertyIndicate) {
+                    DDLogVerbose(@"subscribing to characteristic with indicate property");
+                    [peripheral setNotifyValue:YES forCharacteristic:characteristic];
+                }
+            }
+        }];
+        
+        [weakSelf setDidUpdateCharacteristicValueBlock:^(CBCharacteristic *characteristic){
+            
+            [weakSelf writeColumns:@[
+             [[[characteristic service] peripheral] name],
+             [[[[characteristic service] UUID] data] hexString],
+             [[[characteristic UUID] data] hexString],
+             [[weakSelf dateFormatter] stringFromDate:[NSDate date]],
+             [[characteristic value] description],
+             ]];
+        }];
+        
+        [peripheral discoverServices:nil];
+        [peripheral readRSSI];
     }];
 }
 
@@ -553,8 +570,6 @@ typedef void(^HEArrayBlock)(NSArray *array);
 didDiscoverPeripheral:(CBPeripheral *)peripheral
     advertisementData:(NSDictionary *)advertisementData
                  RSSI:(NSNumber *)RSSI {
-  
-    DDLogVerbose(@"didDiscoverPeripheral %@\n with RSSI %@\nand data %@\n\n",[peripheral UUID], RSSI, advertisementData);
     NSString *UUID;
   
     UUID = [NSString stringWithCFUUID:[peripheral UUID]];
