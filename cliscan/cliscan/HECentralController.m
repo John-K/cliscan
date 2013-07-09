@@ -35,6 +35,8 @@ typedef void(^HEArrayBlock)(NSArray *array);
 @property (nonatomic,assign,getter = isScanning) BOOL scanning;
 @property (nonatomic,assign,getter = isInteractive) BOOL interactive;
 @property (nonatomic,assign) double timeout;
+@property (nonatomic) int packets_rxd;
+@property (nonatomic,strong) NSDate *start;
 
 @end
 
@@ -89,6 +91,8 @@ typedef void(^HEArrayBlock)(NSArray *array);
     self = [self init];
     if (self) {
         [self setCentralManager:aCentralManager];
+        self.start = [NSDate date];
+        self.packets_rxd = 0;
         [aCentralManager setDelegate:self];
     }
     return self;
@@ -301,7 +305,7 @@ typedef void(^HEArrayBlock)(NSArray *array);
         
         [weakSelf setDidDiscoverCharacteristicsBlock:^(CBService *service){
             for (CBCharacteristic *characteristic in [service characteristics]) {
-                if (characteristic.properties & CBCharacteristicPropertyIndicate) {
+                if (characteristic.properties & CBCharacteristicPropertyNotify) {
                     DDLogVerbose(@"subscribing to characteristic with indicate property");
                     [peripheral setNotifyValue:YES forCharacteristic:characteristic];
                 }
@@ -309,7 +313,7 @@ typedef void(^HEArrayBlock)(NSArray *array);
         }];
         
         [weakSelf setDidUpdateCharacteristicValueBlock:^(CBCharacteristic *characteristic){
-            
+            /*
             [weakSelf writeColumns:@[
              [[[characteristic service] peripheral] name],
              [[[[characteristic service] UUID] data] hexString],
@@ -317,10 +321,18 @@ typedef void(^HEArrayBlock)(NSArray *array);
              [[weakSelf dateFormatter] stringFromDate:[NSDate date]],
              [[characteristic value] description],
              ]];
+            */
+            self.packets_rxd++;
+            double timeInterval = -[self.start timeIntervalSinceNow];
+            if (self.packets_rxd%20==0) {
+                NSLog(@"throughput %f, packets: %d, time: %f", ((double)(self.packets_rxd*20*8))/timeInterval, self.packets_rxd, timeInterval);
+                self.start = [NSDate date];
+                self.packets_rxd = 0;
+            }
         }];
         
         [peripheral discoverServices:nil];
-        [peripheral readRSSI];
+        self.start = [NSDate date];
     }];
 }
 
