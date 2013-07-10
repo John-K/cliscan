@@ -68,13 +68,9 @@ typedef void(^HEArrayBlock)(NSArray *array);
 
     [self writeLine:@"BLE Scanner v1.3"];
     [self writeLine:@"Usage:"];
+    [self writeLine:@"\t-i interactive mode"];
     [self writeLine:@"\t-t timeout"];
-    [self writeLine:@"\t-c characteristic UUID(s) to subscribe to, Comma separated list"];
-    [self writeLine:@"\t-r characteristic UUID to read"];
-    [self writeLine:@"\t-d device name"];
-    [self writeLine:@"\t-v Become verbose"];
-    [self writeLine:@"\t-s service UUID"];
-
+    [self writeLine:@"\t-v verbose"];
 }
 
 #pragma mark - Object life cycle
@@ -150,77 +146,36 @@ typedef void(^HEArrayBlock)(NSArray *array);
   
     while ((c= getopt(argc, argv, "c:d:s:t:r:hiv")) != -1){
         switch (c) {
-            case 'c':
-                subscribe = YES;
-            case 'r':
-                characteristic = [NSString stringWithCString:optarg
-                                            encoding:NSUTF8StringEncoding];
-                break;
-            case 'd':
-                deviceName = [NSString stringWithCString:optarg
-                                        encoding:NSUTF8StringEncoding];
-                break;
-            case 's':
-                service = [NSString stringWithCString:optarg
-                                     encoding:NSUTF8StringEncoding];
-        
-                if ([service isEqualToString:@"hello"]) {
-                    service = kHelloServiceUUID; //Aliased UUID string
-                }
-                if ([service isEqualToString:@"dev"]) {
-                    service = kHelloDevUUID; //Aliased UUID string
-                }
-                break;
             case 't':
                 self.timeout = [[NSString stringWithCString:optarg
                                                    encoding:NSUTF8StringEncoding] doubleValue];
                 break;
             case 'h':
-        
                 [HECentralController writeHelp];
-                printf("%s %d", __FUNCTION__, __LINE__);
                 exit(EXIT_SUCCESS);
+                
             case 'v':
                 ddLogLevel = 1;
                 break;
+                
             case 'i':
                 //enable interactive mode
                 //overrides all other characteristics
                 self.interactive = YES;
                 break;
+                
             case '?':
                 
             default:
-                printf("%s %d", __FUNCTION__, __LINE__);
                 exit(EXIT_FAILURE);
                 break;
         }
         optreset = 1;
     }
-  
-    if ((deviceName || service || characteristic) && [self timeout] != 15.0f ) {
-    [self writeLine:@"You cannot use the timeout param if you are not performing a scan"];
-    printf("%s %d", __FUNCTION__, __LINE__);
-    exit(EXIT_FAILURE);
-    }
     
     if (self.interactive) {
         NSLog(@"entering interactive mode");
         [self startScanForDuration:[self timeout]];
-    } else if ( deviceName && service && characteristic && subscribe ){
-        self.timeout = UINT16_MAX;
-        [self subscribeToCharacteristics:characteristic
-                                 service:service
-                             deviceNamed:deviceName];
-    } else if ( deviceName && service && characteristic ) {
-        [self readValueForCharacteristic:characteristic
-                                 service:service
-                             deviceNamed:deviceName];
-    } else if ( deviceName && service ) {
-        [self listCharacteristicsForService:service
-                                deviceNamed:deviceName];
-    } else if (deviceName) {
-        [self listServicesForDeviceNamed:deviceName];
     } else {
         [self startScanForDuration:[self timeout]];
     }
@@ -354,188 +309,6 @@ typedef void(^HEArrayBlock)(NSArray *array);
                     if ([self isInteractive]) {
                         [self presentDevices];
                     }
-                }];
-}
-
-
-- (void)listServicesForDeviceNamed:(NSString *)aDevice {
-  
-    __weak id weakSelf = self;
-
-    [self connectToPeripheralNamed:aDevice
-                         withBlock:^(CBPeripheral *peripheral){
-                             [peripheral discoverServices:nil];
-                         }];
-  
-    //Print the services
-    [self setDidDiscoverServicesBlock:^(CBPeripheral *peripheral){
-    
-        for (CBService *service in [peripheral services]) {
-            [weakSelf writeLine:[[[service UUID] data] hexString]];
-        }
-        printf("%s %d", __FUNCTION__, __LINE__);
-        exit(EXIT_SUCCESS);
-    }];
-  
-    [self scanForDuration:[self timeout]
-                withBlock:^{
-                    DDLogVerbose(@"Stopped list");
-                }];
-}
-
-- (void)listCharacteristicsForService:(NSString *)aService
-                          deviceNamed:(NSString *)aDevice {
-  
-    CBUUID *serviceUUID;
-  
-    serviceUUID = [CBUUID UUIDWithString:aService];
-  
-    __weak id weakSelf = self;
-  
-    [self connectToPeripheralNamed:aDevice
-                       withBlock:^(CBPeripheral *peripheral){
-                           [peripheral discoverServices:nil];
-                       }];
-  
-    [self setDidDiscoverServicesBlock:^(CBPeripheral *peripheral){
-    
-        for (CBService *service in [peripheral services]) {
-            if ( [[service UUID] isEqual:serviceUUID]) {
-                [[service peripheral] discoverCharacteristics:nil
-                                                   forService:service];
-                break;
-            }
-        }
-
-    }];
-  
-    [self setDidDiscoverCharacteristicsBlock:^(CBService *service){
-    
-        for (CBCharacteristic *characteristic in [service characteristics]) {
-            [weakSelf writeLine:[[[characteristic UUID] data] hexString]];
-        }
-        
-        printf("%s %d", __FUNCTION__, __LINE__);
-        exit(EXIT_SUCCESS);
-    }];
-  
-    [self scanForDuration:[self timeout]
-                withBlock:^{
-                    DDLogVerbose(@"listCharacteristicsForService");
-                }];
-}
-
-- (void)readValueForCharacteristic:(NSString *)aCharacteristic
-                           service:(NSString *)aService
-                       deviceNamed:(NSString*)aDevice {
- 
-    CBUUID *serviceUUID;
-    CBUUID *characteristicUUID;
-  
-    serviceUUID = [CBUUID UUIDWithString:aService];
-    characteristicUUID = [CBUUID UUIDWithString:aCharacteristic];
-  
-    __weak id weakSelf = self;
-  
-    [self connectToPeripheralNamed:aDevice
-                       withBlock:^(CBPeripheral *peripheral){
-                           [peripheral discoverServices:nil];
-                       }];
-  
-    [self setDidDiscoverServicesBlock:^(CBPeripheral *peripheral){
-        for (CBService *service in [peripheral services]) {
-            if ( [[service UUID] isEqual:serviceUUID]) {
-                [[service peripheral] discoverCharacteristics:nil
-                                                   forService:service];
-                break;
-            }
-        }
-    }];
-  
-    [self setDidDiscoverCharacteristicsBlock:^(CBService *service){
-    
-        for (CBCharacteristic *characteristic in [service characteristics]) {
-
-            if ([[characteristic UUID] isEqual:characteristicUUID]) {
-                [[service peripheral] readValueForCharacteristic:characteristic];
-                break;
-            }
-        }
-  }];
-  
-    [self setDidUpdateCharacteristicValueBlock:^(CBCharacteristic *characteristic){
-    
-        [weakSelf writeColumns:@[
-         [[[characteristic service] peripheral] name],
-         [[[[characteristic service] UUID] data] hexString],
-         [[[characteristic UUID] data] hexString],
-         [[weakSelf dateFormatter] stringFromDate:[NSDate date]],
-         [[characteristic value] hexString],
-         ]];
-        
-        printf("%s %d", __FUNCTION__, __LINE__);
-        exit(EXIT_SUCCESS);
-    }];
-  
-    [self scanForDuration:[self timeout]
-                withBlock:^{
-                    DDLogVerbose(@"listCharacteristicsForService");
-                }];
-}
-
-- (void)subscribeToCharacteristics:(NSString *)aCharacteristic
-                           service:(NSString *)aService
-                       deviceNamed:(NSString*)aDevice {
-  
-    CBUUID *serviceUUID;
-    NSArray *characteristics;
-    __weak id weakSelf;
-  
-    serviceUUID = [CBUUID UUIDWithString:aService];
-  
-    characteristics = [self characteristicUUIDsWithString:aCharacteristic];
-  
-    weakSelf = self;
-  
-    [self connectToPeripheralNamed:aDevice
-                         withBlock:^(CBPeripheral *peripheral){
-                             [peripheral discoverServices:nil];
-                         }];
-  
-    [self setDidDiscoverServicesBlock:^(CBPeripheral *peripheral){
-    
-        for (CBService *service in [peripheral services]) {
-            if ( [[service UUID] isEqual:serviceUUID]) {
-                [[service peripheral] discoverCharacteristics:nil
-                                                   forService:service];
-                break;
-            }
-        }
-  }];
-  
-    [self setDidDiscoverCharacteristicsBlock:^(CBService *service){
-        for (CBCharacteristic *characteristic in [service characteristics]) {
-      
-            if ([characteristics containsObject:[characteristic UUID]]) {
-                [[service peripheral] setNotifyValue:YES
-                                   forCharacteristic:characteristic];
-            }
-        }
-    }];
-  
-    [self setDidUpdateCharacteristicValueBlock:^(CBCharacteristic *characteristic){
-        [weakSelf writeColumns:@[
-         [[[characteristic service] peripheral] name],
-         [[[[characteristic service] UUID] data] hexString],
-         [[[characteristic UUID] data] hexString],
-         [[weakSelf dateFormatter] stringFromDate:[NSDate date]],
-         [[characteristic value] hexString],
-         ]];
-    }];
-  
-    [self scanForDuration:[self timeout]
-                withBlock:^{
-                    DDLogVerbose(@"subscribeToCharacteristic");
                 }];
 }
 

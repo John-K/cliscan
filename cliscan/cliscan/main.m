@@ -62,15 +62,6 @@ NSArray* arrayWithStrings(const char *arr[],int len) {
                 @"-i",
                 @"-t",
                 @"3"];
-    /*
-    arguments = @[
-                  @"/Desktop Scanner",
-                  @"-d",
-                  @"iphone_dev",
-                  @"-s",
-                  @"dev",
-                  @"-v"];
-     */
     
     [[self controller] parseArguments:arguments];
   

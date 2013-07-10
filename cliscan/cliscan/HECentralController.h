@@ -23,16 +23,4 @@
 
 - (void)startScanForDuration:(CGFloat)duration;
 
-- (void)listServicesForDeviceNamed:(NSString *)aDevice;
-
-- (void)listCharacteristicsForService:(NSString *)aService
-                          deviceNamed:(NSString *)aDevice;
-
-- (void)readValueForCharacteristic:(NSString *)aCharacteristic
-                           service:(NSString *)aService
-                       deviceNamed:(NSString*)aDevice;
-
-- (void)subscribeToCharacteristics:(NSString *)aCharacteristic
-                           service:(NSString *)aService
-                       deviceNamed:(NSString*)aDevice;
 @end
