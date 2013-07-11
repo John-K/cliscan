@@ -34,6 +34,8 @@ typedef void(^HEArrayBlock)(NSArray *array);
 @property (nonatomic,strong) NSDateFormatter *dateFormatter;
 @property (nonatomic,assign,getter = isScanning) BOOL scanning;
 @property (nonatomic,assign,getter = isInteractive) BOOL interactive;
+@property (nonatomic,assign,getter = isPrinting) BOOL printData;
+@property (nonatomic,assign,getter = isThroughputTest) BOOL throughputTest;
 @property (nonatomic,assign) double timeout;
 @property (nonatomic) int packets_rxd;
 @property (nonatomic,strong) NSDate *start;
@@ -69,6 +71,8 @@ typedef void(^HEArrayBlock)(NSArray *array);
     [self writeLine:@"BLE Scanner v1.3"];
     [self writeLine:@"Usage:"];
     [self writeLine:@"\t-i interactive mode"];
+    [self writeLine:@"\t-q print throughput data"];
+    [self writeLine:@"\t-p print received data"];
     [self writeLine:@"\t-t timeout"];
     [self writeLine:@"\t-v verbose"];
 }
@@ -125,12 +129,8 @@ typedef void(^HEArrayBlock)(NSArray *array);
 #pragma mark - helper methods
 - (void)parseArguments:(NSArray *)arguments {
   
-    NSString *characteristic;
-    NSString *deviceName;
-    NSString *service;
-  
-    BOOL subscribe = NO;
     self.interactive = NO;
+    self.printData = NO;
     int c;
     int argc;
   
@@ -144,8 +144,16 @@ typedef void(^HEArrayBlock)(NSArray *array);
         argv[i] = (char *)[[arguments objectAtIndex:i] cStringUsingEncoding:NSUTF8StringEncoding];
     }
   
-    while ((c= getopt(argc, argv, "c:d:s:t:r:hiv")) != -1){
+    while ((c= getopt(argc, argv, "t:hivp")) != -1){
         switch (c) {
+            case 'p':
+                self.printData = YES;
+                break;
+                
+            case 'q':
+                self.throughputTest = YES;
+                break;
+                
             case 't':
                 self.timeout = [[NSString stringWithCString:optarg
                                                    encoding:NSUTF8StringEncoding] doubleValue];
@@ -268,7 +276,7 @@ typedef void(^HEArrayBlock)(NSArray *array);
         }];
         
         [weakSelf setDidUpdateCharacteristicValueBlock:^(CBCharacteristic *characteristic){
-            /*
+            if (self.isPrinting) {
             [weakSelf writeColumns:@[
              [[[characteristic service] peripheral] name],
              [[[[characteristic service] UUID] data] hexString],
@@ -276,10 +284,10 @@ typedef void(^HEArrayBlock)(NSArray *array);
              [[weakSelf dateFormatter] stringFromDate:[NSDate date]],
              [[characteristic value] description],
              ]];
-            */
+            }
             self.packets_rxd++;
             double timeInterval = -[self.start timeIntervalSinceNow];
-            if (self.packets_rxd%20==0) {
+            if (self.throughputTest && self.packets_rxd%20==0) {
                 NSLog(@"throughput %f, packets: %d, time: %f", ((double)(self.packets_rxd*20*8))/timeInterval, self.packets_rxd, timeInterval);
                 self.start = [NSDate date];
                 self.packets_rxd = 0;
