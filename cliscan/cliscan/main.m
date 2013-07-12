@@ -63,8 +63,8 @@ NSArray* arrayWithStrings(const char *arr[],int len) {
                 @"-i",
                 @"-t",
                 @"3",
-                @"-p"];
-    */ 
+                @"-q"];
+    */
     [[self controller] parseArguments:arguments];
   
 }

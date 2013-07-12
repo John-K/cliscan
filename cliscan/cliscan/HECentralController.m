@@ -144,7 +144,7 @@ typedef void(^HEArrayBlock)(NSArray *array);
         argv[i] = (char *)[[arguments objectAtIndex:i] cStringUsingEncoding:NSUTF8StringEncoding];
     }
   
-    while ((c= getopt(argc, argv, "t:hivp")) != -1){
+    while ((c= getopt(argc, argv, "t:hivpq")) != -1){
         switch (c) {
             case 'p':
                 self.printData = YES;
