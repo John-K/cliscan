@@ -58,7 +58,7 @@ class BandReadBatteryDelegate(bt.AppDelegate):
 
     def characteristicDidRead(self, characteristic):
         if bt.isCharacteristic(characteristic, BATTERY_LEVEL_CHARACTERISTIC, BATTERY_SERVICE):
-            print "[%s%s]: %s" % (BATTERY_SERVICE, BATTERY_LEVEL_CHARACTERISTIC, characteristic.value())
+            print "[%s%s]: %d" % (BATTERY_SERVICE, BATTERY_LEVEL_CHARACTERISTIC, int(characteristic.value().description()[1:-1], 16))
             print "Done. Press Ctrl-Z then 'kill %1' to kill this thing."
 
 class CyclingSpeedAndCadenceWriteDelegate(bt.AppDelegate):
