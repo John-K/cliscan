@@ -17,10 +17,11 @@
 
 @property (nonatomic) CBCentralManager* manager;
 @property (nonatomic) NSMutableSet* peripherals;
+@property (nonatomic) NSMutableSet* connectedPeripherals;
 @property (nonatomic) NSCondition* foundPeripheral;
 @property (nonatomic) NSCondition* foundService;
 @property (nonatomic) NSCondition* foundCharacteristic;
-@property (nonatomic) NSCondition* didReadCharacteristic;
+@property (nonatomic) NSCondition* disconnectedPeripheral;
 
 @end
 
@@ -63,9 +64,20 @@ static HEBluetoothShellDelegate* delegate = nil;
 
 - (void)centralManager:(CBCentralManager *)central didConnectPeripheral:(CBPeripheral *)peripheral
 {
+    [self.connectedPeripherals addObject:peripheral];
+    
     peripheral.delegate = self;
     
     [peripheral discoverServices:nil];
+}
+
+- (void)centralManager:(CBCentralManager *)central didDisconnectPeripheral:(CBPeripheral *)peripheral error:(NSError *)error
+{
+    if([self.connectedPeripherals containsObject:peripheral]) {
+        [self.connectedPeripherals removeObject:peripheral];
+        
+        [self.disconnectedPeripheral broadcast];
+    }
 }
 
 #pragma mark CBPeripheralDelegate methods
@@ -92,8 +104,10 @@ static HEBluetoothShellDelegate* delegate = nil;
     if(!self) return nil;
     
     self.peripherals = [NSMutableSet set];
+    self.connectedPeripherals = [NSMutableSet set];
     self.foundPeripheral = [[NSCondition alloc] init];
     self.foundService = [[NSCondition alloc] init];
+    self.disconnectedPeripheral = [[NSCondition alloc] init];
     
     return self;
 }
@@ -102,6 +116,27 @@ static HEBluetoothShellDelegate* delegate = nil;
 {
     dispatch_queue_t bluetoothQueue = dispatch_queue_create("com.hello.HEBluetoothShellCommands.bluetoothQueue", NULL);
     self.manager = [[CBCentralManager alloc] initWithDelegate:self queue:bluetoothQueue];
+}
+
+- (void)stopScan
+{
+    [self.manager stopScan];
+}
+
+- (void)disconnectAllPeripherals
+{
+    for(CBPeripheral* peripheral in self.connectedPeripherals) {
+        
+        [self.manager cancelPeripheralConnection:peripheral];
+    }
+    
+    [self.disconnectedPeripheral lock];
+    
+    while([self.connectedPeripherals count] != 0) {
+        [self.disconnectedPeripheral wait];
+    }
+    
+    [self.disconnectedPeripheral unlock];
 }
 
 + (void)implementMethodWithSelector:(SEL)selector types:(char*)types block:(id)block
@@ -239,6 +274,13 @@ void start_scan()
     [HEBluetoothShellDelegate initialize];
     
     [delegate startScan];
+}
+
+void stop_scan()
+{
+    [delegate disconnectAllPeripherals];
+    
+    [delegate stopScan];
 }
 
 CBPeripheral* find_peripheral_by_name(const char* const name)

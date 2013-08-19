@@ -1,3 +1,4 @@
+import atexit
 import ctypes
 import os
 
@@ -63,7 +64,11 @@ def start_scan():
     this before you do anything else.
     """
 
+    atexit.register(stop_scan)
     dylib.start_scan()
+
+def stop_scan():
+    dylib.stop_scan()
 
 def find_peripheral_by_name(name):
     """Finds a peripheral by a given name, e.g. "LightBlue" or "Band (DFU
