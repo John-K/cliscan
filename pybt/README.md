@@ -1,22 +1,31 @@
-INSTALLATION
-============
+PyBT
+====
 
-1. You will need to install pip, a Python package manager, if you haven't yet.  To install pip:
+Some basic Python bindings to OS X's CoreBluetooth framework.
 
-    curl -O http://python-distribute.org/distribute_setup.py && python distribute_setup.py --user && rm distribute_setup*
-    easy_install -U pip
-    easy_install -U virtualenv
-    echo 'export PATH=$PATH:$HOME/Library/Python/2.7/bin' >> ~/.profile
+Requirements
+------------
 
-2. `pip install --user -U -r requirements.txt`. This will take a while
-   (5-10 minutes), since it downloads and compiles a new version of
-   PyObjC. (And yeah, you need the new version.)  You need the
-   `--user` parameter to install PyObjC to your home directory instead
-   of to /System/Library/, since you don't want to overwrite the
-   system-provided PyObjC, and you need the `-U` parameter to tell pip
-   to upgrade PyObjC, since a system-installed version already exists.
+* PyObjC 2.5+ with the Cocoa framework: `pip install --user -U -r
+  requirements.txt`.
 
-3. Run `./example.py`, which shouldn't do anything other than print out
-   a few lines that look like `<CBCharacteristic: 0xdeadbeef>`.
+I elected not to use virtualenv since it's just one dependency, and I
+figured the virtualenv would be more trouble than it's worth.  If
+you'd prefer me to use virtualenv, let me know and I'll be happy to do
+it.
 
-4. Look at the comments in `example.py` to how to use things.
+Building
+--------
+
+    (cd hello/pybt && xcodebuild -configuration Release)
+
+Do _not_ build this with the Xcode app, since it will place built
+products in ~/Library/Developer/Xcode/DerivedData/, instead of
+building things relative to the project path.
+
+Testing
+-------
+
+    ./example.py
+
+Voila.

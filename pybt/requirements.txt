@@ -1,2 +1,2 @@
-pyobjc==2.5.1
 pyobjc-core==2.5.1
+pyobjc-framework-Cocoa==2.5.1
