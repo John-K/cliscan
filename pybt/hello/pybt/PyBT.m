@@ -13,15 +13,98 @@
 
 //
 
+typedef int (*SubscriberCallback)(CBCharacteristic*, NSData*);
+
+@interface HEBluetoothShellDelegateSubscription : NSObject
+
+@property (nonatomic) CBCharacteristic* characteristic;
+@property (nonatomic) NSCondition* condition;
+@property (nonatomic) id observer;
+@property (nonatomic) NSMutableArray* dataQueue;
+@property (nonatomic) SubscriberCallback callback;
+
+@end
+
+@implementation HEBluetoothShellDelegateSubscription
+
+- (id)initWithCharacteristic:(CBCharacteristic*)characteristic callback:(SubscriberCallback)callback
+{
+    self = [super init];
+    if(!self) {
+        return nil;
+    }
+    
+    self.dataQueue = [NSMutableArray array];
+    
+    self.callback = callback;
+    
+    self.condition = [[NSCondition alloc] init];
+    [self.condition setName:[NSString stringWithFormat:@"%@", characteristic.UUID]];
+    [self.condition lock];
+    
+    self.observer = [[NSNotificationCenter defaultCenter] addObserverForName:@"HEBluetoothShellDelegateDidReadCharacteristic" object:characteristic queue:nil usingBlock:^(NSNotification* note) {
+        NSData* data = note.userInfo[@"data"];
+        
+        if(callback) {
+            callback(characteristic, data);
+        } else {
+            [self.dataQueue addObject:data];
+        }
+        
+        [self broadcast];
+    }];
+    
+    [[[characteristic service] peripheral] setNotifyValue:YES forCharacteristic:characteristic];
+
+    return self;
+}
+
+- (void)unsubscribe
+{
+    [[[self.characteristic service] peripheral] setNotifyValue:NO forCharacteristic:self.characteristic];
+    
+    [[NSNotificationCenter defaultCenter] removeObserver:self.observer];
+}
+
+- (void)broadcast
+{
+    [self.condition broadcast];
+}
+
+- (NSData*)read
+{
+    if(self.callback) {
+        @throw [NSException exceptionWithName:@"HEBluetoothShellDelegateSubscriptionWaitCalledForAsynchronousCallback" reason:[NSString stringWithFormat:@"You have called %s, but have also specified a callback. Either (1) do not specify a callback (synchronous behaviour), and call %s to retrieve the next value, or (2) specify a callback and do not use %s.", __func__, __func__, __func__] userInfo:nil];
+    }
+    
+    if([self.dataQueue count] > 0) {
+        NSData* data = [self.dataQueue objectAtIndex:0];
+        [self.dataQueue removeObjectAtIndex:0];
+        
+        return data;
+    }
+    
+    while([self.dataQueue count] == 0) {
+        [self.condition wait];
+    }
+    
+    NSData* data = [self.dataQueue objectAtIndex:0];
+    [self.dataQueue removeObjectAtIndex:0];
+    
+    return data;
+}
+
+@end
+
+//
+
 @interface HEBluetoothShellDelegate : NSObject<CBCentralManagerDelegate, CBPeripheralDelegate>
 
-@property (nonatomic) CBCentralManager* manager;
+@property (nonatomic) CBCentralManager* central;
 @property (nonatomic) NSMutableSet* peripherals;
 @property (nonatomic) NSMutableSet* connectedPeripherals;
-@property (nonatomic) NSCondition* foundPeripheral;
-@property (nonatomic) NSCondition* foundService;
-@property (nonatomic) NSCondition* foundCharacteristic;
-@property (nonatomic) NSCondition* disconnectedPeripheral;
+@property (nonatomic) dispatch_queue_t bluetoothQueue;
+@property (nonatomic) NSMapTable* subscriptions; /* CBCharacteristic -> HEBluetoothShellDelegateSubscription */
 
 @end
 
@@ -31,6 +114,8 @@
 
 static HEBluetoothShellDelegate* delegate = nil;
 
+#pragma mark Lifecycle
+
 + (void)initialize
 {
     static BOOL initialized = NO;
@@ -39,6 +124,19 @@ static HEBluetoothShellDelegate* delegate = nil;
         initialized = YES;
         delegate = [[HEBluetoothShellDelegate alloc] init];
     }
+}
+
+- (id)init
+{
+    self = [super init];
+    if(!self) return nil;
+    
+    self.peripherals = [NSMutableSet set];
+    self.connectedPeripherals = [NSMutableSet set];
+    self.bluetoothQueue = dispatch_queue_create("com.hello.HEBluetoothShellCommands.bluetoothQueue", NULL);
+    self.subscriptions = [NSMapTable strongToStrongObjectsMapTable];
+    
+    return self;
 }
 
 #pragma mark CBCentralManagerDelegate methods
@@ -59,7 +157,7 @@ static HEBluetoothShellDelegate* delegate = nil;
     [self.peripherals addObject:peripheral];
     [central connectPeripheral:peripheral options:@{CBConnectPeripheralOptionNotifyOnDisconnectionKey: @YES}];
     
-    [self.foundPeripheral broadcast];
+    [[NSNotificationCenter defaultCenter] postNotificationName:@"HEBluetoothShellDelegateDidDiscoverPeripheral" object:central userInfo:@{@"peripheral": peripheral, @"advertisementData": advertisementData, @"RSSI": RSSI}];
 }
 
 - (void)centralManager:(CBCentralManager *)central didConnectPeripheral:(CBPeripheral *)peripheral
@@ -75,9 +173,20 @@ static HEBluetoothShellDelegate* delegate = nil;
 {
     if([self.connectedPeripherals containsObject:peripheral]) {
         [self.connectedPeripherals removeObject:peripheral];
-        
-        [self.disconnectedPeripheral broadcast];
     }
+
+    if([self.peripherals containsObject:peripheral]) {
+        [self.peripherals removeObject:peripheral];
+    }
+
+    if(error) {
+        NSLog(@"%s: %@", __func__, error);
+        return;
+    }
+
+    [[NSNotificationCenter defaultCenter] postNotificationName:@"HEBluetoothShellDelegateDidDisconnectPeripheral" object:central userInfo:@{@"peripheral": peripheral, @"error": error ? error : [NSNull null]}];
+    
+    [central connectPeripheral:peripheral options:@{CBConnectPeripheralOptionNotifyOnDisconnectionKey: @YES}];
 }
 
 #pragma mark CBPeripheralDelegate methods
@@ -85,137 +194,228 @@ static HEBluetoothShellDelegate* delegate = nil;
 - (void)peripheral:(CBPeripheral *)peripheral didDiscoverServices:(NSError *)error
 {
     if(error) {
-        NSLog(@"-peripheral:didDiscoverServices: %@", error);
-        return;
+        NSLog(@"%s: %@", __func__, error);
     }
 
     for(CBService* service in peripheral.services) {
+        [[NSNotificationCenter defaultCenter] postNotificationName:@"HEBluetoothShellDelegateDidDiscoverService" object:peripheral userInfo:@{@"service": service, @"error": error ? error : [NSNull null]}];
         [peripheral discoverCharacteristics:nil forService:service];
     }
+}
 
-    [self.foundService broadcast];
+- (void)peripheral:(CBPeripheral *)peripheral didDiscoverCharacteristicsForService:(CBService *)service error:(NSError *)error
+{
+    if(error) {
+        NSLog(@"%s: %@", __func__, error);
+    }
+    
+    for(CBCharacteristic* characteristic in service.characteristics) {
+        [[NSNotificationCenter defaultCenter] postNotificationName:@"HEBluetoothShellDelegateDidDiscoverCharacteristic" object:service userInfo:@{@"characteristic": characteristic, @"error": error ? error : [NSNull null]}];
+    }
+}
+
+- (void)peripheral:(CBPeripheral *)peripheral didUpdateNotificationStateForCharacteristic:(CBCharacteristic *)characteristic error:(NSError *)error
+{
+    if(error) {
+        NSLog(@"%s Error changing notification state: %@", __func__, error);
+    }
+}
+
+- (void)peripheral:(CBPeripheral *)peripheral didUpdateValueForCharacteristic:(CBCharacteristic *)characteristic error:(NSError *)error
+{
+    if(error) {
+        NSLog(@"%s: %@", __func__, error);
+    }
+    
+    [[NSNotificationCenter defaultCenter] postNotificationName:@"HEBluetoothShellDelegateDidReadCharacteristic" object:characteristic userInfo:@{@"data": characteristic.value ? characteristic.value : [NSNull null], @"error": error ? error : [NSNull null]}];
+}
+
+- (void)peripheral:(CBPeripheral *)peripheral didWriteValueForCharacteristic:(CBCharacteristic *)characteristic error:(NSError *)error
+{
+    if(error) {
+        NSLog(@"%s: %@", __func__, error);
+    }
+    
+    [[NSNotificationCenter defaultCenter] postNotificationName:@"HEBluetoothShellDelegateDidWriteCharacteristic" object:characteristic userInfo:@{@"error": error ? error : [NSNull null]}];
 }
 
 #pragma mark Methods
 
-- (id)init
-{
-    self = [super init];
-    if(!self) return nil;
-    
-    self.peripherals = [NSMutableSet set];
-    self.connectedPeripherals = [NSMutableSet set];
-    self.foundPeripheral = [[NSCondition alloc] init];
-    self.foundService = [[NSCondition alloc] init];
-    self.disconnectedPeripheral = [[NSCondition alloc] init];
-    
-    return self;
-}
-
 - (void)startScan
 {
-    dispatch_queue_t bluetoothQueue = dispatch_queue_create("com.hello.HEBluetoothShellCommands.bluetoothQueue", NULL);
-    self.manager = [[CBCentralManager alloc] initWithDelegate:self queue:bluetoothQueue];
+    self.central = [[CBCentralManager alloc] initWithDelegate:self queue:self.bluetoothQueue];
 }
 
-- (void)stopScan
+@end
+
+//
+
+void start_scan(NSArray* UUIDStrings)
 {
-    [self.manager stopScan];
+    [HEBluetoothShellDelegate initialize];
+    
+    [delegate startScan];
 }
 
-- (void)disconnectAllPeripherals
+void disconnect_all_peripherals()
 {
-    for(CBPeripheral* peripheral in self.connectedPeripherals) {
-        
-        [self.manager cancelPeripheralConnection:peripheral];
+    for(CBCharacteristic* characteristic in delegate.subscriptions) {
+        [[delegate.subscriptions objectForKey:characteristic] unsubscribe];
     }
     
-    [self.disconnectedPeripheral lock];
-    
-    while([self.connectedPeripherals count] != 0) {
-        [self.disconnectedPeripheral wait];
+    for(CBPeripheral* peripheral in delegate.connectedPeripherals) {
+        [delegate.central cancelPeripheralConnection:peripheral];
     }
     
-    [self.disconnectedPeripheral unlock];
-}
-
-+ (void)implementMethodWithSelector:(SEL)selector types:(char*)types block:(id)block
-{
-    class_replaceMethod(self, selector, imp_implementationWithBlock(block), types);
-}
-
-typedef BOOL (^PeripheralPredicateBlock)(CBPeripheral*);
-- (CBPeripheral*)findPeripheralWithPredicate:(PeripheralPredicateBlock)predicate
-{
-    [self.foundPeripheral lock];
-    
-    for(;;) {
-        for(CBPeripheral* peripheral in self.peripherals) {
-            if(predicate(peripheral)) {
-                [self.foundPeripheral unlock];
-                return peripheral;
-            }
-        }
-        
-        [self.foundPeripheral wait];
+    if([delegate.connectedPeripherals count] == 0) {
+        return;
     }
-}
-
-typedef BOOL (^ServicePredicateBlock)(CBService*);
-- (CBService*)findServiceForPeripheral:(CBPeripheral*)peripheral withPredicate:(ServicePredicateBlock)predicate
-{
-    [self findPeripheralWithPredicate:^BOOL (CBPeripheral* i) {
-        return peripheral == i;
-    }];
-
-    [self.foundService lock];
     
-    for(;;) {
-        for(CBService* service in peripheral.services) {
-            if(predicate(service)) {
-                [self.foundService unlock];
-                return service;
-            }
-        }
-        
-        [self.foundService wait];
-    }
-}
+    NSCondition* condition = [[NSCondition alloc] init];
 
-typedef BOOL (^CharacteristicPredicateBlock)(CBCharacteristic*);
-- (CBCharacteristic*)findCharacteristicForService:(CBService*)service withPredicate:(CharacteristicPredicateBlock)predicate
-{
-    [self findServiceForPeripheral:service.peripheral withPredicate:^BOOL(CBService* i) {
-        return service == i;
+    id observer = [[NSNotificationCenter defaultCenter] addObserverForName:@"HEBluetoothShellDelegateDidDisconnectPeripheral" object:delegate.central queue:nil usingBlock:^(NSNotification* note) {
+        [condition broadcast];
     }];
     
-    for(;;) {
-        for(CBCharacteristic* characteristic in service.characteristics) {
-            if(predicate(characteristic)) {
-                return characteristic;
-            }
-        }
-        
-        [self.foundCharacteristic lock];
-        [self.foundCharacteristic wait];
+    [condition lock];
+    while([delegate.connectedPeripherals count] > 0) {
+        [condition wait];
     }
+    [condition unlock];
+    
+    [[NSNotificationCenter defaultCenter] removeObserver:observer];
 }
 
-- (NSData*)syncReadCharacteristic:(CBCharacteristic*)characteristic
+void stop_scan()
 {
-    __block NSData* data = nil;
+    [delegate.central stopScan];
+    
+    disconnect_all_peripherals();
+}
+
+CBPeripheral* find_peripheral_by_name(const char* const name)
+{
+    NSString* wantedName = [NSString stringWithUTF8String:name];
+    
+    BOOL (^predicate)(CBPeripheral*) = ^BOOL(CBPeripheral* peripheral) {
+        return [peripheral.name isEqualToString:wantedName] ? YES : NO;
+    };
+    
+    NSCondition* condition = [[NSCondition alloc] init];
+       
+    __block CBPeripheral* peripheral = nil;
+    
+    __block id observer = [[NSNotificationCenter defaultCenter] addObserverForName:@"HEBluetoothShellDelegateDidDiscoverPeripheral" object:delegate.central queue:nil usingBlock:^(NSNotification* note) {
+        CBPeripheral* newPeripheral = note.userInfo[@"peripheral"];
+        if(!predicate(newPeripheral)) {
+            return;
+        }
+        
+        peripheral = newPeripheral;
+        [condition broadcast];
+        [[NSNotificationCenter defaultCenter] removeObserver:observer];
+    }];
+    
+    for(CBPeripheral* peripheral in delegate.peripherals) {
+        if(predicate(peripheral)) {
+            return peripheral;
+        }
+    }
+    
+    [condition lock];
+    while(!peripheral) {
+        [condition wait];
+    }
+    [condition unlock];
+
+    return peripheral;
+}
+
+CBService* peripheral_get_service_by_uuid(CBPeripheral* peripheral, const char* const UUIDString)
+{
+    CBUUID* wantedUUID = [CBUUID UUIDWithString:[NSString stringWithUTF8String:UUIDString]];
     
     NSCondition* condition = [[NSCondition alloc] init];
     
-    [[self class] implementMethodWithSelector:@selector(peripheral:didUpdateValueForCharacteristic:error:) types:"v@:@@@" block:^(HEBluetoothShellDelegate* delegate, CBPeripheral* peripheral, CBCharacteristic* characteristic, NSError* error) {
-        if(error) {
-            NSLog(@"-peripheral:didUpdateValueForCharacteristic:error: %@", error);
+    __block CBService* service = nil;
+    
+    __block id observer = [[NSNotificationCenter defaultCenter] addObserverForName:@"HEBluetoothShellDelegateDidDiscoverService" object:peripheral queue:nil usingBlock:^(NSNotification* note) {
+        CBService* newService = note.userInfo[@"service"];
+        if(![newService.UUID isEqual:wantedUUID]) {
             return;
         }
-
-        data = characteristic.value;
         
-        [condition signal];
+        service = newService;
+        [condition broadcast];
+        [[NSNotificationCenter defaultCenter] removeObserver:observer];
+    }];
+
+    for(CBService* service in peripheral.services) {
+        if([service.UUID isEqual:wantedUUID]) {
+            return service;
+        }
+    }
+    
+    [condition lock];
+    while(!service) {
+        [condition wait];
+    }
+    [condition unlock];
+    
+    return service;
+}
+
+CBCharacteristic* service_get_characteristic_by_uuid(CBService* service, const char* const UUIDString)
+{
+    CBUUID* wantedUUID = [CBUUID UUIDWithString:[NSString stringWithUTF8String:UUIDString]];
+    
+    NSCondition* condition = [[NSCondition alloc] init];
+    
+    __block CBCharacteristic* characteristic = nil;
+    
+    __block id observer = [[NSNotificationCenter defaultCenter] addObserverForName:@"HEBluetoothShellDelegateDidDiscoverCharacteristic" object:service queue:nil usingBlock:^(NSNotification* note) {
+        CBCharacteristic* newCharacteristic = note.userInfo[@"characteristic"];
+        
+        if(![newCharacteristic.UUID isEqual:wantedUUID]) {
+            return;
+        }
+        
+        characteristic = newCharacteristic;
+        [condition broadcast];
+        [[NSNotificationCenter defaultCenter] removeObserver:observer];
+    }];
+    
+    for(CBCharacteristic* characteristic in service.characteristics) {
+        if([characteristic.UUID isEqual:wantedUUID]) {
+            return characteristic;
+        }
+    }
+    
+    [condition lock];
+    while(!characteristic) {
+        [condition wait];
+    }
+    [condition unlock];
+    
+    return characteristic;
+}
+
+NSData* characteristic_sync_read(CBCharacteristic* characteristic)
+{
+    if((characteristic.properties & CBCharacteristicPropertyRead) == 0) {
+        NSLog(@"characteristic.sync_read(): You attempted to read from a non-readable characteristic %@; an error will follow. (Perhaps you need to subscribe to the characeristic instead?", characteristic);
+    }
+    
+    NSCondition* condition = [[NSCondition alloc] init];
+    
+    __block NSData* data = nil;
+    
+    __block id observer = [[NSNotificationCenter defaultCenter] addObserverForName:@"HEBluetoothShellDelegateDidReadCharacteristic" object:characteristic queue:nil usingBlock:^(NSNotification* note) {
+        data = note.userInfo[@"data"];
+        
+        [condition broadcast];
+        
+        [[NSNotificationCenter defaultCenter] removeObserver:observer];
     }];
     
     [condition lock];
@@ -230,91 +430,71 @@ typedef BOOL (^CharacteristicPredicateBlock)(CBCharacteristic*);
     return data;
 }
 
-- (BOOL)writeToCharacteristic:(CBCharacteristic*)characteristic wantResponse:(BOOL)needsResponse data:(NSData*)data
+BOOL characteristic_write(CBCharacteristic* characteristic, NSData* data, int wantConfirmation)
 {
-    const BOOL characteristicCanWriteWithResponse = (characteristic.properties & CBCharacteristicPropertyWrite) != 0;
+    __block BOOL success = YES;
     
-    if(needsResponse && characteristicCanWriteWithResponse) {
-        __block BOOL attemptedWrite = NO;
+    if(wantConfirmation) {
+        if((characteristic.properties & CBCharacteristicPropertyWrite) == 0) {
+            NSLog(@"characteristic.write_confirm(): You attempted to write to a characteristic %@ that does not support writing with confirmation; an error will follow.", characteristic);
+        }
         
         NSCondition* condition = [[NSCondition alloc] init];
-        [condition lock];
         
-        [[self class] implementMethodWithSelector:@selector(peripheral:didWriteValueForCharacteristic:error:) types:"v@:@@@" block:^(HEBluetoothShellDelegate* delegate, CBPeripheral* peripheral, CBCharacteristic* characteristic, NSError* error) {
-            attemptedWrite = YES;
-            
-            if(error) {
-                NSLog(@"-peripheral:didWriteValueForCharacteristic:error: %@", error);
+        __block BOOL finished = NO;
+        
+        __block id observer = [[NSNotificationCenter defaultCenter] addObserverForName:@"HEBluetoothShellDelegateDidWriteCharacteristic" object:characteristic queue:nil usingBlock:^(NSNotification* note) {
+            finished = YES;
+            if(![note.userInfo[@"error"] isEqual:[NSNull null]]) {
+                success = NO;
             }
             
-            [condition signal];
+            [condition broadcast];
+            
+            [[NSNotificationCenter defaultCenter] removeObserver:observer];
         }];
+        
+        [condition lock];
         
         [characteristic.service.peripheral writeValue:data forCharacteristic:characteristic type:CBCharacteristicWriteWithResponse];
         
-        while(!attemptedWrite) {
+        while(!finished) {
             [condition wait];
         }
         [condition unlock];
-        
-        return YES;
     } else {
-        [characteristic.service.peripheral writeValue:data forCharacteristic:characteristic type:CBCharacteristicWriteWithoutResponse];
+        if((characteristic.properties & CBCharacteristicPropertyWriteWithoutResponse) == 0) {
+            NSLog(@"characteristic.write_no_confirm(): You attempted to write to a characteristic %@ that does not support writing without confirmation; an error will follow.", characteristic);
+        }
         
-        return NO;
+        [characteristic.service.peripheral writeValue:data forCharacteristic:characteristic type:CBCharacteristicWriteWithoutResponse];
     }
-}
-
-@end
-
-//
-
-void start_scan()
-{
-    [HEBluetoothShellDelegate initialize];
     
-    [delegate startScan];
+    return success;
 }
 
-void stop_scan()
+HEBluetoothShellDelegateSubscription* characteristic_subscribe(CBCharacteristic* characteristic, SubscriberCallback callback)
 {
-    [delegate disconnectAllPeripherals];
+    if((characteristic.properties & CBCharacteristicPropertyNotify) == 0) {
+        NSLog(@"characteristic.subscribe(): You attempted to subscribe to a characteristic %@ that does not support notifications; an error will follow.", characteristic);
+    }
+
+    HEBluetoothShellDelegateSubscription* subscription = [[HEBluetoothShellDelegateSubscription alloc] initWithCharacteristic:characteristic callback:callback];
+    [delegate.subscriptions setObject:subscription forKey:characteristic];
     
-    [delegate stopScan];
+    return subscription;
 }
 
-CBPeripheral* find_peripheral_by_name(const char* const name)
+void characteristic_unsubscribe(CBCharacteristic* characteristic, id observer)
 {
-    NSString* wantedName = [NSString stringWithUTF8String:name];
-    return [delegate findPeripheralWithPredicate:^BOOL (CBPeripheral* peripheral) {
-        return [peripheral.name isEqualToString:wantedName];
-    }];
-}
+    [[[characteristic service] peripheral] setNotifyValue:NO forCharacteristic:characteristic];
 
-CBService* peripheral_get_service_by_uuid(CBPeripheral* peripheral, const char* const UUIDString)
-{
-    CBUUID* UUID = [CBUUID UUIDWithString:[NSString stringWithUTF8String:UUIDString]];
+    [[NSNotificationCenter defaultCenter] removeObserver:observer];
     
-    return [delegate findServiceForPeripheral:peripheral withPredicate:^BOOL(CBService* service) {
-        return [service.UUID isEqual:UUID];
-    }];
+    [delegate.subscriptions removeObjectForKey:characteristic];
 }
 
-CBCharacteristic* service_get_characteristic_by_uuid(CBService* service, const char* const UUIDString)
+NSData* subscription_sync_read(CBCharacteristic* characteristic)
 {
-    CBUUID* UUID = [CBUUID UUIDWithString:[NSString stringWithUTF8String:UUIDString]];
-
-    return [delegate findCharacteristicForService:service withPredicate:^BOOL(CBCharacteristic* characteristic) {
-        return [characteristic.UUID isEqual:UUID];
-    }];
-}
-
-NSData* characteristic_sync_read(CBCharacteristic* characteristic)
-{
-    return [delegate syncReadCharacteristic:characteristic];
-}
-
-BOOL characteristic_write(CBCharacteristic* characteristic, NSData* data, int wantConfirmation)
-{
-    return [delegate writeToCharacteristic:characteristic wantResponse:(wantConfirmation == 0 ? NO : YES) data:data];
+    return [[delegate.subscriptions objectForKey:characteristic] read];
 }
