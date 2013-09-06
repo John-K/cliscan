@@ -2,12 +2,17 @@ import atexit
 import ctypes
 import os
 
-import IOBluetooth.CoreBluetooth as CoreBluetooth
+import objc
 import Cocoa
+
+import IOBluetooth.CoreBluetooth as CoreBluetooth
 
 #
 
-dylib = ctypes.cdll.LoadLibrary(os.path.join(os.path.dirname(__file__), 'build/Release/PyBT.dylib'))
+dylib = ctypes.cdll.LoadLibrary(os.path.join(os.path.dirname(__file__), 'build/Debug/PyBT.dylib'))
+
+HEBluetoothShellDelegate = objc.lookUpClass('HEBluetoothShellDelegate')
+HEBluetoothShellDelegateSubscription = objc.lookUpClass('HEBluetoothShellDelegateSubscription')
 
 #
 
@@ -15,6 +20,7 @@ dylib.find_peripheral_by_name.restype = ctypes.c_void_p
 dylib.peripheral_get_service_by_uuid.restype = ctypes.c_void_p
 dylib.service_get_characteristic_by_uuid.restype = ctypes.c_void_p
 dylib.characteristic_sync_read.restype = ctypes.c_void_p
+dylib.characteristic_subscribe.restype = ctypes.c_void_p
 
 #
 
@@ -39,6 +45,8 @@ def characteristic_sync_read(self):
     return bytearray(data.bytes().tobytes())
 CoreBluetooth.CBCharacteristic.sync_read = characteristic_sync_read
 
+##
+
 def characteristic_write(self, value, confirm):
     if isinstance(value, bytearray):
         pass
@@ -57,15 +65,51 @@ def characteristic_write_no_confirm(self, value):
 CoreBluetooth.CBCharacteristic.write_confirm = characteristic_write_confirm
 CoreBluetooth.CBCharacteristic.write_no_confirm = characteristic_write_no_confirm
 
+# Subscribe/Unsubscribe
+
+def characteristic_subscribe(self, callback=None):
+    # <http://docs.python.org/2/library/ctypes.html#callback-functions>
+
+    if callback:
+        CALLBACK_PROXY_FUNCTION = ctypes.CFUNCTYPE(ctypes.c_int, ctypes.c_void_p, ctypes.c_void_p)
+        def callbackProxy(characteristicPointer, dataPointer):
+            characteristic = CoreBluetooth.CBCharacteristic(c_void_p=characteristicPointer)
+            data = Cocoa.NSData(c_void_p=dataPointer)
+            bytes = bytearray(data.bytes().tobytes())
+            return callback(characteristic, bytes)
+        dylibCallback = CALLBACK_PROXY_FUNCTION(callbackProxy)
+    else:
+        dylibCallback = None
+
+    pointer = dylib.characteristic_subscribe(self.__c_void_p__(), dylibCallback)
+    return HEBluetoothShellDelegateSubscription(c_void_p=pointer)
+CoreBluetooth.CBCharacteristic.subscribe = characteristic_subscribe
+
+def characteristic_unsubscribe(self, observer):
+    return dylib.characteristic_unsubscribe(self, observer)
+CoreBluetooth.CBCharacteristic.unsubscribe = characteristic_unsubscribe
+
 #
 
-def start_scan():
+def subscription_sync_read(self):
+    return dylib.subscription_read(self)
+HEBluetoothShellDelegateSubscription.sync_read = subscription_sync_read
+
+#
+
+def start_scan(service_uuids_wanted=None):
     """Starts the scan for Bluetooth LE peripherals.  You need to call
     this before you do anything else.
     """
 
+    if service_uuids_wanted is not None:
+        cbuuids = [CBUUID.UUIDWithString_(uuid_string) for uuid_string in service_uuids_wanted]
+        cbuuids = NSArray.arrayWithObjects_(*cbuuids).__c_void_p__()
+    else:
+        cbuuids = None
+
     atexit.register(stop_scan)
-    dylib.start_scan()
+    dylib.start_scan() # (cbuuids)
 
 def stop_scan():
     dylib.stop_scan()
