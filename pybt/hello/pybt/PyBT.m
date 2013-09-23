@@ -371,6 +371,33 @@ CBPeripheral* find_peripheral_by_name(const char* const name)
     return peripheral;
 }
 
+NSArray* find_all_peripherals(unsigned timeout)
+{
+    NSCondition* condition = [[NSCondition alloc] init];
+
+    NSMutableArray* peripherals = [NSMutableArray array];
+    
+    id observer = [[NSNotificationCenter defaultCenter] addObserverForName:@"HEBluetoothShellDelegateDidDiscoverPeripheral" object:delegate.central queue:nil usingBlock:^(NSNotification* note) {
+        CBPeripheral* peripheral = note.userInfo[@"peripheral"];
+        
+        if(![peripherals containsObject:peripheral]) {
+            [peripherals addObject:peripheral];
+        }
+    }];
+    
+    [NSTimer scheduledTimerWithTimeInterval:timeout block:^() {
+        [condition broadcast];
+        [[NSNotificationCenter defaultCenter] removeObserver:observer];
+    } repeats:NO];
+
+    NSDate* timeoutDate = [NSDate dateWithTimeIntervalSinceNow:timeout];
+    [condition lock];
+    [condition waitUntilDate:timeoutDate];
+    [condition unlock];
+    
+    return peripherals;
+}
+
 CBService* peripheral_get_service_by_uuid(CBPeripheral* peripheral, const char* const UUIDString)
 {
     CBUUID* wantedUUID = [CBUUID UUIDWithString:[NSString stringWithUTF8String:UUIDString]];
