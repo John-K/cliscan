@@ -6,10 +6,11 @@ import objc
 import Cocoa
 
 import IOBluetooth.CoreBluetooth as CoreBluetooth
+import Foundation
 
 #
 
-dylib = ctypes.cdll.LoadLibrary(os.path.join(os.path.dirname(__file__), 'build/Debug/PyBT.dylib'))
+dylib = ctypes.cdll.LoadLibrary(os.path.join(os.path.dirname(__file__), 'build/Release/PyBT.dylib'))
 
 HEBluetoothShellDelegate = objc.lookUpClass('HEBluetoothShellDelegate')
 HEBluetoothShellDelegateSubscription = objc.lookUpClass('HEBluetoothShellDelegateSubscription')
@@ -17,6 +18,7 @@ HEBluetoothShellDelegateSubscription = objc.lookUpClass('HEBluetoothShellDelegat
 #
 
 dylib.find_peripheral_by_name.restype = ctypes.c_void_p
+dylib.find_all_peripherals.restype = ctypes.c_void_p
 dylib.peripheral_get_service_by_uuid.restype = ctypes.c_void_p
 dylib.service_get_characteristic_by_uuid.restype = ctypes.c_void_p
 dylib.characteristic_sync_read.restype = ctypes.c_void_p
@@ -121,3 +123,9 @@ def find_peripheral_by_name(name):
     pointer = dylib.find_peripheral_by_name(name)
     peripheral = CoreBluetooth.CBPeripheral(c_void_p=pointer)
     return peripheral
+
+def find_all_peripherals(timeout=5):
+    """Finds all peripherals given a timeout"""
+    pointer = dylib.find_all_peripherals(timeout)
+    peripherals = Foundation.NSObject(c_void_p=pointer)
+    return peripherals

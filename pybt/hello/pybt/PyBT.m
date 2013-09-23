@@ -13,6 +13,44 @@
 
 //
 
+// An NSTimer category to to add blocks support: <https://github.com/jivadevoe/NSTimer-Blocks/blob/master/NSTimer%2BBlocks.m>
+
+@interface NSTimer (Blocks)
+
++(id)scheduledTimerWithTimeInterval:(NSTimeInterval)inTimeInterval block:(void (^)())inBlock repeats:(BOOL)inRepeats;
++(id)timerWithTimeInterval:(NSTimeInterval)inTimeInterval block:(void (^)())inBlock repeats:(BOOL)inRepeats;
+
+@end
+
+@implementation NSTimer (Blocks)
+
++(id)scheduledTimerWithTimeInterval:(NSTimeInterval)inTimeInterval block:(void (^)())inBlock repeats:(BOOL)inRepeats
+{
+    void (^block)() = [inBlock copy];
+    id ret = [self scheduledTimerWithTimeInterval:inTimeInterval target:self selector:@selector(jdExecuteSimpleBlock:) userInfo:block repeats:inRepeats];
+    return ret;
+}
+
++(id)timerWithTimeInterval:(NSTimeInterval)inTimeInterval block:(void (^)())inBlock repeats:(BOOL)inRepeats
+{
+    void (^block)() = [inBlock copy];
+    id ret = [self timerWithTimeInterval:inTimeInterval target:self selector:@selector(jdExecuteSimpleBlock:) userInfo:block repeats:inRepeats];
+    return ret;
+}
+
++(void)jdExecuteSimpleBlock:(NSTimer *)inTimer;
+{
+    if([inTimer userInfo])
+    {
+        void (^block)() = (void (^)())[inTimer userInfo];
+        block();
+    }
+}
+
+@end
+
+//
+
 typedef int (*SubscriberCallback)(CBCharacteristic*, NSData*);
 
 @interface HEBluetoothShellDelegateSubscription : NSObject
@@ -24,6 +62,8 @@ typedef int (*SubscriberCallback)(CBCharacteristic*, NSData*);
 @property (nonatomic) SubscriberCallback callback;
 
 @end
+
+//
 
 @implementation HEBluetoothShellDelegateSubscription
 
@@ -329,6 +369,33 @@ CBPeripheral* find_peripheral_by_name(const char* const name)
     [condition unlock];
 
     return peripheral;
+}
+
+NSArray* find_all_peripherals(unsigned timeout)
+{
+    NSCondition* condition = [[NSCondition alloc] init];
+
+    NSMutableArray* peripherals = [NSMutableArray array];
+    
+    id observer = [[NSNotificationCenter defaultCenter] addObserverForName:@"HEBluetoothShellDelegateDidDiscoverPeripheral" object:delegate.central queue:nil usingBlock:^(NSNotification* note) {
+        CBPeripheral* peripheral = note.userInfo[@"peripheral"];
+        
+        if(![peripherals containsObject:peripheral]) {
+            [peripherals addObject:peripheral];
+        }
+    }];
+    
+    [NSTimer scheduledTimerWithTimeInterval:timeout block:^() {
+        [condition broadcast];
+        [[NSNotificationCenter defaultCenter] removeObserver:observer];
+    } repeats:NO];
+
+    NSDate* timeoutDate = [NSDate dateWithTimeIntervalSinceNow:timeout];
+    [condition lock];
+    [condition waitUntilDate:timeoutDate];
+    [condition unlock];
+    
+    return peripherals;
 }
 
 CBService* peripheral_get_service_by_uuid(CBPeripheral* peripheral, const char* const UUIDString)
