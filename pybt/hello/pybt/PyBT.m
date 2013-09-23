@@ -13,6 +13,44 @@
 
 //
 
+// An NSTimer category to to add blocks support: <https://github.com/jivadevoe/NSTimer-Blocks/blob/master/NSTimer%2BBlocks.m>
+
+@interface NSTimer (Blocks)
+
++(id)scheduledTimerWithTimeInterval:(NSTimeInterval)inTimeInterval block:(void (^)())inBlock repeats:(BOOL)inRepeats;
++(id)timerWithTimeInterval:(NSTimeInterval)inTimeInterval block:(void (^)())inBlock repeats:(BOOL)inRepeats;
+
+@end
+
+@implementation NSTimer (Blocks)
+
++(id)scheduledTimerWithTimeInterval:(NSTimeInterval)inTimeInterval block:(void (^)())inBlock repeats:(BOOL)inRepeats
+{
+    void (^block)() = [inBlock copy];
+    id ret = [self scheduledTimerWithTimeInterval:inTimeInterval target:self selector:@selector(jdExecuteSimpleBlock:) userInfo:block repeats:inRepeats];
+    return ret;
+}
+
++(id)timerWithTimeInterval:(NSTimeInterval)inTimeInterval block:(void (^)())inBlock repeats:(BOOL)inRepeats
+{
+    void (^block)() = [inBlock copy];
+    id ret = [self timerWithTimeInterval:inTimeInterval target:self selector:@selector(jdExecuteSimpleBlock:) userInfo:block repeats:inRepeats];
+    return ret;
+}
+
++(void)jdExecuteSimpleBlock:(NSTimer *)inTimer;
+{
+    if([inTimer userInfo])
+    {
+        void (^block)() = (void (^)())[inTimer userInfo];
+        block();
+    }
+}
+
+@end
+
+//
+
 typedef int (*SubscriberCallback)(CBCharacteristic*, NSData*);
 
 @interface HEBluetoothShellDelegateSubscription : NSObject
@@ -24,6 +62,8 @@ typedef int (*SubscriberCallback)(CBCharacteristic*, NSData*);
 @property (nonatomic) SubscriberCallback callback;
 
 @end
+
+//
 
 @implementation HEBluetoothShellDelegateSubscription
 
