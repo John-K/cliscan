@@ -10,7 +10,7 @@ import Foundation
 
 #
 
-dylib = ctypes.cdll.LoadLibrary(os.path.join(os.path.dirname(__file__), 'build/Debug/PyBT.dylib'))
+dylib = ctypes.cdll.LoadLibrary(os.path.join(os.path.dirname(__file__), 'build/Release/PyBT.dylib'))
 
 HEBluetoothShellDelegate = objc.lookUpClass('HEBluetoothShellDelegate')
 HEBluetoothShellDelegateSubscription = objc.lookUpClass('HEBluetoothShellDelegateSubscription')
