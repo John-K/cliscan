@@ -101,9 +101,11 @@ CoreBluetooth.CBCharacteristic.__getitem__ = characteristic_getitem
     
 # subscriptions
 
-def subscription_sync_read(self):
-    return dylib.subscription_read(self)
-HEBluetoothShellDelegateSubscription.sync_read = subscription_sync_read
+def subscription_read(self):
+    data = self._read()
+    bytes = bytearray(data.bytes().tobytes())
+    return bytes
+HEBluetoothShellDelegateSubscription.read = subscription_read
 
 #
 

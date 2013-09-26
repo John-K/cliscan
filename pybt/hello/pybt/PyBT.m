@@ -94,8 +94,22 @@ typedef int (*SubscriberCallback)(CBCharacteristic*, NSData*);
         [self broadcast];
     }];
     
-    [[[characteristic service] peripheral] setNotifyValue:YES forCharacteristic:characteristic];
+    NSCondition* condition = [[NSCondition alloc] init];
 
+    __block BOOL receivedNotification = NO;
+    __block id observer = [[NSNotificationCenter defaultCenter]addObserverForName:@"HEBluetoothShellDelegateDidUpdateNotificationStateForCharacteristic" object:characteristic queue:Nil usingBlock:^(NSNotification* note) {
+        receivedNotification = YES;
+        [condition broadcast];
+        [[NSNotificationCenter defaultCenter] removeObserver:observer];
+    }];
+    
+    [condition lock];
+    [[[characteristic service] peripheral] setNotifyValue:YES forCharacteristic:characteristic];
+    while(!receivedNotification) {
+        [condition wait];
+    }
+    [condition unlock];
+    
     return self;
 }
 
@@ -111,7 +125,7 @@ typedef int (*SubscriberCallback)(CBCharacteristic*, NSData*);
     [self.condition broadcast];
 }
 
-- (NSData*)read
+- (NSData*)_read
 {
     if(self.callback) {
         @throw [NSException exceptionWithName:@"HEBluetoothShellDelegateSubscriptionWaitCalledForAsynchronousCallback" reason:[NSString stringWithFormat:@"You have called %s, but have also specified a callback. Either (1) do not specify a callback (synchronous behaviour), and call %s to retrieve the next value, or (2) specify a callback and do not use %s.", __func__, __func__, __func__] userInfo:nil];
@@ -257,6 +271,10 @@ static HEBluetoothShellDelegate* delegate = nil;
 
 - (void)peripheral:(CBPeripheral *)peripheral didUpdateNotificationStateForCharacteristic:(CBCharacteristic *)characteristic error:(NSError *)error
 {
+    NSLog(@"%s", __func__);
+
+    [[NSNotificationCenter defaultCenter] postNotificationName:@"HEBluetoothShellDelegateDidUpdateNotificationStateForCharacteristic" object:characteristic userInfo:@{@"error": error ? error : [NSNull null]}];
+
     if(error) {
         NSLog(@"%s Error changing notification state: %@", __func__, error);
     }
@@ -573,9 +591,9 @@ void characteristic_unsubscribe(CBCharacteristic* characteristic, id observer)
     [delegate.subscriptions removeObjectForKey:characteristic];
 }
 
-NSData* subscription_sync_read(CBCharacteristic* characteristic)
+NSData* subscription_read(CBCharacteristic* characteristic)
 {
-    return [[delegate.subscriptions objectForKey:characteristic] read];
+    return [[delegate.subscriptions objectForKey:characteristic] _read];
 }
 
 #pragma mark Descriptors
