@@ -94,8 +94,22 @@ typedef int (*SubscriberCallback)(CBCharacteristic*, NSData*);
         [self broadcast];
     }];
     
-    [[[characteristic service] peripheral] setNotifyValue:YES forCharacteristic:characteristic];
+    NSCondition* condition = [[NSCondition alloc] init];
 
+    __block BOOL receivedNotification = NO;
+    __block id observer = [[NSNotificationCenter defaultCenter]addObserverForName:@"HEBluetoothShellDelegateDidUpdateNotificationStateForCharacteristic" object:characteristic queue:Nil usingBlock:^(NSNotification* note) {
+        receivedNotification = YES;
+        [condition broadcast];
+        [[NSNotificationCenter defaultCenter] removeObserver:observer];
+    }];
+    
+    [condition lock];
+    [[[characteristic service] peripheral] setNotifyValue:YES forCharacteristic:characteristic];
+    while(!receivedNotification) {
+        [condition wait];
+    }
+    [condition unlock];
+    
     return self;
 }
 
