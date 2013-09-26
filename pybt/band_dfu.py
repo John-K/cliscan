@@ -11,7 +11,8 @@ import hello.pybt as pybt
 uuid_dfu_service = '00001530-1212-EFDE-1523-785FEABCD123'
 uuid_dfu_control_state_characteristic = '00001531-1212-EFDE-1523-785FEABCD123'
 uuid_dfu_packet_characteristic = '00001532-1212-EFDE-1523-785FEABCD123'
-uuid_client_characteristic_configuration_descriptor = '2902'
+
+log.basicConfig(level=log.DEBUG)
 
 #
 
@@ -48,6 +49,8 @@ def uint16_bytearray(value):
 def validate_dfu_response(data):
     op_code = data[0]
 
+    print "Validating..."
+
     if op_code == OpCodes.PKT_RCPT_NOTIF:
         log.debug('Received PKT_RCPT_NOTIF for %d bytes' % struct.unpack('<H', data[1:2]))
     elif op_code == OpCodes.RESPONSE:
@@ -62,6 +65,11 @@ def validate_dfu_response(data):
             request_op_code,
             response_text,
             response_value))
+    else:
+        dataText = ''
+        for c in data:
+            dataText += '%x' % ord(c)
+        log.debug('Received unknown response (%s): %s' % (type(data), dataText))
 
 def main(argv):
     arg_parser = argparse.ArgumentParser(description='Send firmware to Band.')
@@ -78,6 +86,7 @@ def main(argv):
 
     firmware_data = bytearray(open(args.firmware_path, 'rb').read())
     firmware_size = len(firmware_data)
+
     print "firmware is %d bytes" % firmware_size
 
     pybt.start_scan()
@@ -95,11 +104,7 @@ def main(argv):
     print dfu_control_point.UUID()
     dfu_packet = dfu[uuid_dfu_packet_characteristic]
     print dfu_packet.UUID()
-    # dfu_cccd = dfu_control_point[uuid_client_characteristic_configuration_descriptor]
-    # print dfu_cccd
-
-    # didWrite = dfu_control_point.write_confirm(uint16_bytearray(1))
-    # print "wrote 1 to dfu_cccd: %d" % didWrite
+    
     if packet_notification_count > 0:
         dfu_control_point.write_confirm(
             bytearray([OpCodes.REQ_PKT_RCPT_NOTIF])
@@ -107,14 +112,15 @@ def main(argv):
         validate_dfu_response(dfu_control_point.sync_read())
 
     control_point_subscription = dfu_control_point.subscribe()
-    dfu_control_point.write_confirm(bytearray([OpCodes.START_DFU]))
-    #validate_dfu_response(control_point_subscription.read())
+    didWrite = dfu_control_point.write_confirm(bytearray([OpCodes.START_DFU]))
 
-    print "wrote START_DFU"
+    print "wrote START_DFU: %d" % didWrite
 
-    dfu_packet.write_no_confirm(uint16_bytearray(firmware_size))
+    dfu_packet.write_no_confirm(uint32_bytearray(firmware_size))
 
     print "wrote firmware_size=%d" % firmware_size
+    validate_dfu_response(control_point_subscription.read())
+
     #validate_dfu_response(dfu_control_point.sync_read())
 
     dfu_control_point.write_confirm(bytearray([OpCodes.RECEIVE_FIRMWARE_IMAGE]))
