@@ -251,6 +251,7 @@ static HEBluetoothShellDelegate* delegate = nil;
     
     for(CBCharacteristic* characteristic in service.characteristics) {
         [[NSNotificationCenter defaultCenter] postNotificationName:@"HEBluetoothShellDelegateDidDiscoverCharacteristic" object:service userInfo:@{@"characteristic": characteristic, @"error": error ? error : [NSNull null]}];
+        [peripheral discoverDescriptorsForCharacteristic:characteristic];
     }
 }
 
@@ -277,6 +278,17 @@ static HEBluetoothShellDelegate* delegate = nil;
     }
     
     [[NSNotificationCenter defaultCenter] postNotificationName:@"HEBluetoothShellDelegateDidWriteCharacteristic" object:characteristic userInfo:@{@"error": error ? error : [NSNull null]}];
+}
+
+- (void)peripheral:(CBPeripheral *)peripheral didDiscoverDescriptorsForCharacteristic:(CBCharacteristic *)characteristic error:(NSError *)error
+{
+    if(error) {
+        NSLog(@"%s: %@", __func__, error);
+    }
+    
+    for(CBDescriptor* descriptor in characteristic.descriptors) {
+        [[NSNotificationCenter defaultCenter] postNotificationName:@"HEBluetoothShellDelegateDidDiscoverDescriptor" object:characteristic userInfo:@{@"descriptor": descriptor, @"error": error ? error : [NSNull null]}];
+    }
 }
 
 #pragma mark Methods
@@ -565,3 +577,41 @@ NSData* subscription_sync_read(CBCharacteristic* characteristic)
 {
     return [[delegate.subscriptions objectForKey:characteristic] read];
 }
+
+#pragma mark Descriptors
+
+CBDescriptor* characteristic_get_descriptor_by_uuid(CBCharacteristic* characteristic, const char* const UUIDString)
+{
+    CBUUID* wantedUUID = [CBUUID UUIDWithString:[NSString stringWithUTF8String:UUIDString]];
+    
+    NSCondition* condition = [[NSCondition alloc] init];
+    
+    __block CBDescriptor* descriptor = nil;
+    
+    __block id observer = [[NSNotificationCenter defaultCenter] addObserverForName:@"HEBluetoothShellDelegateDidDiscoverDescriptor" object:characteristic queue:nil usingBlock:^(NSNotification* note) {
+        CBDescriptor* newDescriptor = note.userInfo[@"descriptor"];
+        
+        if(![newDescriptor.UUID isEqual:wantedUUID]) {
+            return;
+        }
+        
+        descriptor = newDescriptor;
+        [condition broadcast];
+        [[NSNotificationCenter defaultCenter] removeObserver:observer];
+    }];
+    
+    for(CBDescriptor* descriptor in characteristic.descriptors) {
+        if([descriptor.UUID isEqual:wantedUUID]) {
+            return descriptor;
+        }
+    }
+    
+    [condition lock];
+    while(!characteristic) {
+        [condition wait];
+    }
+    [condition unlock];
+    
+    return descriptor;
+}
+

@@ -8,9 +8,9 @@ import time
 
 import hello.pybt as pybt
 
-uuid_dfu_service = '000015301212efde1523785feabcd123'
-uuid_dfu_control_state_characteristic = '000015311212efde1523785feabcd123'
-uuid_dfu_packet_characteristic = '000015321212efde1523785feabcd123'
+uuid_dfu_service = '00001530-1212-EFDE-1523-785FEABCD123'
+uuid_dfu_control_state_characteristic = '00001531-1212-EFDE-1523-785FEABCD123'
+uuid_dfu_packet_characteristic = '00001532-1212-EFDE-1523-785FEABCD123'
 uuid_client_characteristic_configuration_descriptor = '2902'
 
 #
@@ -76,8 +76,9 @@ def main(argv):
         default=0)
     args = arg_parser.parse_args(argv[1:])
 
-    print "This tool is not working yet."
-    sys.exit(1)
+    firmware_data = bytearray(open(args.firmware_path, 'rb').read())
+    firmware_size = len(firmware_data)
+    print "firmware is %d bytes" % firmware_size
 
     pybt.start_scan()
 
@@ -85,49 +86,60 @@ def main(argv):
 
     # need to implement data_received_handler
 
-    peripherals = pybt.find_all_peripherals(timeout=3)
-    for peripheral in peripherals:
-        print "Found peripheral with name=%s" % peripheral.name()
+    peripheral = pybt.find_peripheral_by_name('Andre')
+    print peripheral
 
-    firmware_data = bytearray(open(args.firmware_path, 'rb'))
-    firmware_size = len(firmware_data)
-
-    peripheral = peripherals[0]
     dfu = peripheral[uuid_dfu_service]
-    dfu_cccd = dfu[uuid_client_characteristic_configuration_descriptor]
+    print dfu.UUID()
     dfu_control_point = dfu[uuid_dfu_control_state_characteristic]
+    print dfu_control_point.UUID()
     dfu_packet = dfu[uuid_dfu_packet_characteristic]
+    print dfu_packet.UUID()
+    # dfu_cccd = dfu_control_point[uuid_client_characteristic_configuration_descriptor]
+    # print dfu_cccd
 
-    dfu_cccd.write_confirm(uint16_bytearray(1))
+    # didWrite = dfu_control_point.write_confirm(uint16_bytearray(1))
+    # print "wrote 1 to dfu_cccd: %d" % didWrite
     if packet_notification_count > 0:
         dfu_control_point.write_confirm(
             bytearray([OpCodes.REQ_PKT_RCPT_NOTIF])
             + uint16_bytearray(packet_notification_count))
         validate_dfu_response(dfu_control_point.sync_read())
 
+    control_point_subscription = dfu_control_point.subscribe()
     dfu_control_point.write_confirm(bytearray([OpCodes.START_DFU]))
-    validate_dfu_response(dfu_control_point.sync_read())
+    #validate_dfu_response(control_point_subscription.read())
 
-    dfu_packet.write_confirm(uint16_bytearray(firmware_size))
-    validate_dfu_response(dfu_control_point.sync_read())
+    print "wrote START_DFU"
+
+    dfu_packet.write_no_confirm(uint16_bytearray(firmware_size))
+
+    print "wrote firmware_size=%d" % firmware_size
+    #validate_dfu_response(dfu_control_point.sync_read())
 
     dfu_control_point.write_confirm(bytearray([OpCodes.RECEIVE_FIRMWARE_IMAGE]))
-    validate_dfu_response(dfu_control_point.sync_read())
+    print "wrote RECEIVE_FIRMWARE_IMAGE"
+    #validate_dfu_response(dfu_control_point.sync_read())
 
     for packet_count, i in enumerate(range(0, firmware_size, PACKET_SIZE)):
         data = firmware_data[i:i+PACKET_SIZE]
-        dfu_packet.write_confirm(data)
-        validate_dfu_response(dfu_control_point.sync_read())
+        dfu_packet.write_no_confirm(data)
+        print "wrote data: %d-%d" % (i, i+PACKET_SIZE)
+        #validate_dfu_response(dfu_control_point.sync_read())
 
         if packet_notification_count > 0 and packet_count % packet_notification_count == 0:
             # what do we do here?
             pass
 
     dfu_control_point.write_confirm(bytearray([OpCodes.VALIDATE_FIRMWARE_IMAGE]))
-    validate_dfu_response(dfu_control_point.sync_read())
+    print "wrote VALIDATE_FIRMWARE_IMAGE"
+    #validate_dfu_response(dfu_control_point.sync_read())
+
+    time.sleep(1)
 
     dfu_control_point.write_confirm(bytearray([OpCodes.ACTIVATE_FIRMWARE_AND_RESET]))
-    validate_dfu_response(dfu_control_point.sync_read())
+    print "wrote ACTIVATE_FIRMWARE_AND_RESET"
+    #validate_dfu_response(dfu_control_point.sync_read())
 
 if __name__ == '__main__':
     main(sys.argv)

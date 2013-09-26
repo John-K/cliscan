@@ -10,7 +10,7 @@ import Foundation
 
 #
 
-dylib = ctypes.cdll.LoadLibrary(os.path.join(os.path.dirname(__file__), 'build/Release/PyBT.dylib'))
+dylib = ctypes.cdll.LoadLibrary(os.path.join(os.path.dirname(__file__), 'build/Debug/PyBT.dylib'))
 
 HEBluetoothShellDelegate = objc.lookUpClass('HEBluetoothShellDelegate')
 HEBluetoothShellDelegateSubscription = objc.lookUpClass('HEBluetoothShellDelegateSubscription')
@@ -23,6 +23,7 @@ dylib.peripheral_get_service_by_uuid.restype = ctypes.c_void_p
 dylib.service_get_characteristic_by_uuid.restype = ctypes.c_void_p
 dylib.characteristic_sync_read.restype = ctypes.c_void_p
 dylib.characteristic_subscribe.restype = ctypes.c_void_p
+dylib.characteristic_get_descriptor_by_uuid.restype = ctypes.c_void_p
 
 #
 
@@ -91,7 +92,14 @@ def characteristic_unsubscribe(self, observer):
     return dylib.characteristic_unsubscribe(self, observer)
 CoreBluetooth.CBCharacteristic.unsubscribe = characteristic_unsubscribe
 
-#
+# descriptors
+
+def characteristic_getitem(self, item):
+    pointer = dylib.characteristic_get_descriptor_by_uuid(self.__c_void_p__(), item)
+    return Foundation.NSObject(c_void_p=pointer)
+CoreBluetooth.CBCharacteristic.__getitem__ = characteristic_getitem
+    
+# subscriptions
 
 def subscription_sync_read(self):
     return dylib.subscription_read(self)
