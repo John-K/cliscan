@@ -112,40 +112,37 @@ def main(argv):
         validate_dfu_response(dfu_control_point.sync_read())
 
     control_point_subscription = dfu_control_point.subscribe()
+
     didWrite = dfu_control_point.write_confirm(bytearray([OpCodes.START_DFU]))
-
     print "wrote START_DFU: %d" % didWrite
-
     dfu_packet.write_no_confirm(uint32_bytearray(firmware_size))
-
     print "wrote firmware_size=%d" % firmware_size
-    validate_dfu_response(control_point_subscription.read())
+    #validate_dfu_response(control_point- -p_subscription.read())
 
-    #validate_dfu_response(dfu_control_point.sync_read())
+    didWrite = dfu_control_point.write_confirm(bytearray([OpCodes.RECEIVE_FIRMWARE_IMAGE]))
+    print "wrote RECEIVE_FIRMWARE_IMAGE: %d" % didWrite
 
-    dfu_control_point.write_confirm(bytearray([OpCodes.RECEIVE_FIRMWARE_IMAGE]))
-    print "wrote RECEIVE_FIRMWARE_IMAGE"
-    #validate_dfu_response(dfu_control_point.sync_read())
+    #validate_dfu_response(control_point_subscription.read())
 
     for packet_count, i in enumerate(range(0, firmware_size, PACKET_SIZE)):
         data = firmware_data[i:i+PACKET_SIZE]
         dfu_packet.write_no_confirm(data)
         print "wrote data: %d-%d" % (i, i+PACKET_SIZE)
-        #validate_dfu_response(dfu_control_point.sync_read())
+        #validate_dfu_response(control_point_subscription.read())
 
         if packet_notification_count > 0 and packet_count % packet_notification_count == 0:
             # what do we do here?
             pass
 
-    dfu_control_point.write_confirm(bytearray([OpCodes.VALIDATE_FIRMWARE_IMAGE]))
-    print "wrote VALIDATE_FIRMWARE_IMAGE"
-    #validate_dfu_response(dfu_control_point.sync_read())
+    didWrite = dfu_control_point.write_confirm(bytearray([OpCodes.VALIDATE_FIRMWARE_IMAGE]))
+    print "wrote VALIDATE_FIRMWARE_IMAGE: %d" % didWrite
+    validate_dfu_response(control_point_subscription.read())
 
     time.sleep(1)
 
-    dfu_control_point.write_confirm(bytearray([OpCodes.ACTIVATE_FIRMWARE_AND_RESET]))
-    print "wrote ACTIVATE_FIRMWARE_AND_RESET"
-    #validate_dfu_response(dfu_control_point.sync_read())
+    didWrite = dfu_control_point.write_confirm(bytearray([OpCodes.ACTIVATE_FIRMWARE_AND_RESET]))
+    print "wrote ACTIVATE_FIRMWARE_AND_RESET: %d" % didWrite
+    validate_dfu_response(control_point_subscription.read())
 
 if __name__ == '__main__':
     main(sys.argv)
