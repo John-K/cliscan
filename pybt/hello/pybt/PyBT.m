@@ -320,7 +320,7 @@ static HEBluetoothShellDelegate* delegate = nil;
 
 //
 
-void start_scan(NSArray* UUIDStrings)
+void start_scan()
 {
     [HEBluetoothShellDelegate initialize];
     
