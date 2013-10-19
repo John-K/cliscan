@@ -271,8 +271,6 @@ static HEBluetoothShellDelegate* delegate = nil;
 
 - (void)peripheral:(CBPeripheral *)peripheral didUpdateNotificationStateForCharacteristic:(CBCharacteristic *)characteristic error:(NSError *)error
 {
-    NSLog(@"%s", __func__);
-
     [[NSNotificationCenter defaultCenter] postNotificationName:@"HEBluetoothShellDelegateDidUpdateNotificationStateForCharacteristic" object:characteristic userInfo:@{@"error": error ? error : [NSNull null]}];
 
     if(error) {
