@@ -15,8 +15,8 @@ CMD_START_ACCEL_GYRO = 0x55
 STATE_HRS_DONE = 0x34
 STATE_IDLE = 0x66
 
-AG_PACKET_SIZE = 12
-AG_SAMPLES = 480
+IMU_PACKET_SIZE = 12
+IMU_SAMPLES = 480
 
 class UUID:
     class SERVICE:
@@ -79,7 +79,7 @@ class Band(object):
 
     # accelerometer/gyroscope
 
-    def test_ag(self, samples=AG_SAMPLES):
+    def test_imu(self, samples=IMU_SAMPLES):
         self.data = self.debug_service[UUID.CHARACTERISTIC.DATA]
         log.debug('Found data characteristic: %s' % self.data.UUID())
 
@@ -90,7 +90,7 @@ class Band(object):
         log.debug("Wrote CMD_START_ACCEL_GYRO to control characteristic")
 
         data = bytearray()
-        for i in range(0, samples / AG_PACKET_SIZE):
+        for i in range(0, samples / IMU_PACKET_SIZE):
             packet = self.data_subscription.read()
             data += packet
 

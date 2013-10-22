@@ -59,9 +59,9 @@ e.g. "start_hrs 10 3000 200" will sample for 2 seconds (200 samples * 100Hz) at 
             print "%3u" % value,
         print
 
-    def do_test_ag(self, line):
-        self.band.test_ag()
-        # data = self.band.test_ag()
+    def do_test_imu(self, line):
+        self.band.test_imu()
+        # data = self.band.test_imu()
 
         # for i in range(0, hello.band.AG_SAMPLES, hello.band.AG_PACKET_SIZE):
         #     s = str(data[i:i+12])
