@@ -4,7 +4,9 @@ import argparse
 import cmd
 import datetime
 import logging as log
+import os
 import struct
+import subprocess
 import sys
 import time
 
@@ -19,30 +21,59 @@ class BandCmd(cmd.Cmd):
         self.start_time = datetime.datetime.now()
         self.prompt = '%s> ' % self.band.name
 
-    def do_start_hrs(self, line):
-        """usage: start_hrs POWER_LEVEL SAMPLES [LED_ACTIVE] [DELAY].
-        
-POWER_LEVEL is from [0, 100].
-SAMPLES is the number of samples to take. The sampling rate is 100Hz.
-LED_ACTIVE is optional: use 1 if you want to keep the LED on all the time. Defaults to 0.
-DELAY is optional, and is in milliseconds.
+    # HRS
 
-e.g. "start_hrs 10 3000 200" will sample for 2 seconds (200 samples * 100Hz) at power level 10 (0xA), with a 3-second delay (3000 milliseconds).
-        """
+    hrs_parser = argparse.ArgumentParser()
+    hrs_parser.add_argument(
+        '-w', '--overwrite',
+        action='store_true',
+        help='Overwrite the output CSV file, instead of appending to it. (See below')
+    hrs_parser.add_argument(
+        'power_level', 
+        type=int,
+        help='from [0, 100]. The higher this number, the brighter the LED will be.')
+    hrs_parser.add_argument(
+        'samples', 
+        type=int,
+        help='the number of samples to take. The sampling rate is fixed at 100Hz, so 100 samples = 1 second.')
+    hrs_parser.add_argument(
+        '--led',
+        action='store_true',
+        help='Keep the LED on after sampling.')
+    hrs_parser.add_argument(
+        'delay',
+        type=int,
+        nargs='?',
+        default=0,
+        help='This is the delay after turning on the LED, but before sampling. 1000 milliseconds = 1 second.'
+    )
 
-        fields = line.split()
-
-        power_level = int(fields[0])
-        sample_count = int(fields[1])
-        led_active = int(fields[2]) if len(fields) > 2 else 0
-        delay = int(fields[3]) if len(fields) > 3 else 0
-
-        output_path = '%s.%s.%02u.%03u.%04u.csv' % (
+    def _csv_basename(self, power_level, sample_count, delay):
+        return 'old/%s.%s.%02u.%03u.%04u.csv' % (
             self.band.name,
             self.start_time.strftime('%Y%m%d.%H%M%S'),
             power_level, 
             sample_count,
             delay)
+
+    def do_hrs(self, line):
+        line_parser = BandCmd.hrs_parser
+        try:
+            arguments = line_parser.parse_args(line.split())
+        except SystemExit:
+            line_parser.print_help()
+            return False
+
+        self.most_recent_hrs_arguments = arguments
+
+        power_level = arguments.power_level
+        sample_count = arguments.samples
+        led_active = arguments.led
+        delay = arguments.delay
+
+        print delay
+
+        output_path = os.path.join('research', self._csv_basename(power_level, sample_count, delay))
 
         method = (self.band.calibrate_hrs_start
                   if led_active
@@ -50,16 +81,62 @@ e.g. "start_hrs 10 3000 200" will sample for 2 seconds (200 samples * 100Hz) at 
         method(power_level, delay, sample_count)
         data = self.band.hrs_read(sample_count)
 
-        file = open(output_path, 'a')
+        file = open(output_path, 'w' if arguments.overwrite else 'a')
         for i, value in enumerate(data):
-            file.write('%u, %u\n' % (i, value))
+            file.write('%u\n' % (value))
         file.close()
 
         for value in data:
             print "%3u" % value,
         print
 
-    def do_test_imu(self, line):
+    do_hrs.__doc__ = hrs_parser.format_help()
+
+    # peak detection (PD)
+
+    pd_parser = argparse.ArgumentParser()
+    pd_parser.add_argument(
+        '-t', '--threshold',
+        type=float,
+        default=None,
+        help='peak detection threshold, defaults to None')
+
+    def do_pd(self, line):
+        line_parser = BandCmd.pd_parser
+
+        try:
+            line_arguments = line_parser.parse_args(line.split())
+        except SystemExit:
+            line_parser.print_help()
+            return False
+
+        arguments = self.most_recent_hrs_arguments
+
+        cwd = os.getcwd()
+        research_path = os.path.join(
+            os.path.dirname(__file__), 
+            'research')
+        os.chdir(research_path)
+        csv_path = self._csv_basename(
+            arguments.power_level, 
+            arguments.samples, 
+            arguments.delay)
+
+        peak_detect_cmd = 'tail -%u %s | python peak_detect.py %s100' % (
+            arguments.samples,
+            csv_path,
+            '-t %u ' % line_arguments.threshold if line_arguments.threshold else ''
+        )
+        log.debug(peak_detect_cmd)
+
+        subprocess.call(peak_detect_cmd, shell=True)
+        os.chdir(cwd)
+
+    do_pd.__doc__ = pd_parser.format_help()
+
+    # IMU
+
+    def do_imu_test(self, line):
         self.band.test_imu()
         # data = self.band.test_imu()
 
@@ -68,10 +145,14 @@ e.g. "start_hrs 10 3000 200" will sample for 2 seconds (200 samples * 100Hz) at 
         #     values = list(struct.unpack('<hhhhhh', s))
         #     print ' '.join(['%6hd' % value for value in values])
 
+    # DFU
+
     def do_DFU(self, line):
         self.band.reset_to_DFU()
         return True
         
+    # EOF
+
     def do_EOF(self, line):
         return True
 
