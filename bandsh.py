@@ -13,12 +13,11 @@ import hello.band
 log.basicConfig(level=log.DEBUG)
 
 class BandCmd(cmd.Cmd):
-    prompt = 'Band> '
-
     def __init__(self, band):
         self.band = band
         cmd.Cmd.__init__(self)  # can't use super since cmd.Cmd is an old-style class
         self.start_time = datetime.datetime.now()
+        self.prompt = '%s> ' % self.band.name
 
     def do_start_hrs(self, line):
         """usage: start_hrs POWER_LEVEL SAMPLES [LED_ACTIVE] [DELAY].
