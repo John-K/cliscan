@@ -7,11 +7,16 @@ import hello.pybt as pybt
 log.basicConfig(level=log.DEBUG)
 
 CMD_START_HRS = 0x33
+CMD_CAL_HRS = 0x35
 CMD_SEND_DATA = 0x44
 CMD_ENTER_DFU = 0x99
+CMD_START_ACCEL_GYRO = 0x55
 
 STATE_HRS_DONE = 0x34
 STATE_IDLE = 0x66
+
+AG_PACKET_SIZE = 12
+AG_SAMPLES = 480
 
 class UUID:
     class SERVICE:
@@ -38,19 +43,19 @@ class Band(object):
         self.control = self.debug_service[UUID.CHARACTERISTIC.CONTROL]
         log.debug('Found control characteristic: %s' % self.control.UUID())
 
+    # heart rate
+
     def hrs_start(self, power_level, delay, samples):
         command = bytearray(struct.pack(
             '<BBHH', CMD_START_HRS, power_level, delay, samples))
         log.debug("Sending %s" % repr(command))
         self.control.write_confirm(command)
-        
-        while True:
-            log.debug("Waiting for STATE_HRS_DONE...")
-            value = self.control.sync_read()
-            if value[0] == STATE_HRS_DONE:
-                log.debug("Received STATE_HRS_DONE")
-                break
-            time.sleep(1)
+
+    def calibrate_hrs_start(self, power_level, delay, samples):
+        command = bytearray(struct.pack(
+            '<BBHH', CMD_CAL_HRS, power_level, delay, samples))
+        log.debug("Sending %s" % repr(command))
+        self.control.write_confirm(command)
 
     def hrs_read(self, samples):
         self.data = self.debug_service[UUID.CHARACTERISTIC.DATA]
@@ -71,6 +76,35 @@ class Band(object):
             log.debug('<- ' + text)
             data += packet
         return data
+
+    # accelerometer/gyroscope
+
+    def test_ag(self, samples=AG_SAMPLES):
+        self.data = self.debug_service[UUID.CHARACTERISTIC.DATA]
+        log.debug('Found data characteristic: %s' % self.data.UUID())
+
+        self.data_subscription = self.data.subscribe()
+        log.debug('Subscribed to data characteristic')
+
+        self.control.write_confirm(bytearray([CMD_START_ACCEL_GYRO]))
+        log.debug("Wrote CMD_START_ACCEL_GYRO to control characteristic")
+
+        data = bytearray()
+        for i in range(0, samples / AG_PACKET_SIZE):
+            packet = self.data_subscription.read()
+            data += packet
+
+            text = ' '.join(['%2x' % value for value in packet])
+            log.debug('<- ' + text)
+
+            #print len(packet)
+            #print type(packet)
+
+            #values = list(struct.unpack('<hhhhh', str(packet)))
+            #print ' '.join(['%6hd' % value for value in values])
+        return data
+
+    # DFU
 
     def reset_to_DFU(self):
         self.control.write_confirm(bytearray([CMD_ENTER_DFU]))

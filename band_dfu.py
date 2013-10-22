@@ -73,6 +73,9 @@ def validate_dfu_response(data):
 def main(argv):
     arg_parser = argparse.ArgumentParser(description='Send firmware to Band.')
     arg_parser.add_argument(
+        'band_name',
+        help='name of the Band, e.g. Band, Andre')
+    arg_parser.add_argument(
         'firmware_path',
         help='path to firmware .bin file')
     arg_parser.add_argument(
@@ -98,7 +101,7 @@ def main(argv):
 
     # need to implement data_received_handler
 
-    peripheral = pybt.find_peripheral_by_name('Andre')
+    peripheral = pybt.find_peripheral_by_name(args.band_name)
     print peripheral
 
     dfu = peripheral[uuid_dfu_service]
