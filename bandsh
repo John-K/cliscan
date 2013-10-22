@@ -70,7 +70,6 @@ e.g. "start_hrs 10 3000 200" will sample for 2 seconds (200 samples * 100Hz) at 
 
     def do_DFU(self, line):
         self.band.reset_to_DFU()
-        print "Sent DFU command; %s will reset, so I'm disconnecting and exiting." % self.band.name
         return True
         
     def do_EOF(self, line):

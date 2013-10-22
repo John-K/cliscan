@@ -107,4 +107,5 @@ class Band(object):
     # DFU
 
     def reset_to_DFU(self):
+        print >> sys.stderr, "Sending DFU command; %s will reset. You will need to Ctrl-Z and kill %1 me." % self.name
         self.control.write_confirm(bytearray([CMD_ENTER_DFU]))
