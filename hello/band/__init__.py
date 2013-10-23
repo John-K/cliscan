@@ -13,6 +13,8 @@ CMD_SEND_DATA = 0x44
 CMD_ENTER_DFU = 0x99
 CMD_START_ACCEL_GYRO = 0x55
 
+CONF_VIBRATE = 0x4
+
 STATE_HRS_DONE = 0x34
 STATE_IDLE = 0x66
 
@@ -26,6 +28,7 @@ class UUID:
 
     class CHARACTERISTIC:
         CONTROL = 'beef'
+        CONFIG = 'c0ff'
         DATA = 'da1a'
         #CONTROL = '00001531-1212-EFDE-1523-785FEABCD123'
         #DATA = '00001531-1212-EFDE-1523-785FEABCD123'
@@ -77,6 +80,12 @@ class Band(object):
             log.debug('<- ' + text)
             data += packet
         return data
+
+    def vibrate(self):
+        self.config = self.debug_service[UUID.CHARACTERISTIC.CONFIG]
+        log.debug('Found config characteristic: %s' % self.config.UUID())
+        self.config.write_confirm(bytearray(struct.pack('<L', CONF_VIBRATE)))
+        log.debug('Wrote CONF_VIBRATE')
 
     # accelerometer/gyroscope
 

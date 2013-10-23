@@ -150,7 +150,12 @@ class BandCmd(cmd.Cmd):
     def do_DFU(self, line):
         self.band.reset_to_DFU()
         return True
-        
+
+    # vibration
+
+    def do_vibrate(self, line):
+        self.band.vibrate()
+
     # EOF
 
     def do_EOF(self, line):
