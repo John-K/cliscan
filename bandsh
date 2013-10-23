@@ -49,7 +49,7 @@ class BandCmd(cmd.Cmd):
     )
 
     def _csv_basename(self, power_level, sample_count, delay):
-        return 'old/%s.%s.%02u.%03u.%04u.csv' % (
+        return '%s.%s.%02u.%03u.%04u.csv' % (
             self.band.name,
             self.start_time.strftime('%Y%m%d.%H%M%S'),
             power_level, 
