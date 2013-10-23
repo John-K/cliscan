@@ -3,31 +3,30 @@ PyBT
 
 Some basic Python bindings to OS X's CoreBluetooth framework.
 
-Requirements
-------------
-
-* PyObjC 2.5+ with the Cocoa framework: `pip install --user -U -r
-  requirements.txt`.
-
-I elected not to use virtualenv since it's just one dependency, and I
-figured the virtualenv would be more trouble than it's worth.  If
-you'd prefer me to use virtualenv, let me know and I'll be happy to do
-it.
-
 Building
 --------
 
-    (cd hello/pybt && xcodebuild -configuration Release)
+    pip install --user -U pyobjc-core
+    pip install --user -U pyobjc-framework-Cocoa
+    (cd hello/pybt && xcodebuild -configuration Debug)
 
-Do _not_ build this with the Xcode app, since it will place built
-products in ~/Library/Developer/Xcode/DerivedData/, instead of
-building things relative to the project path.
+Notes:
+
+* These command-line tools require PyObjC 2.5+. OS X 10.8 comes with
+  PyObjC, but the version is older than 2.5+, so you need to do the
+  `pip install` command above.  You must use `--user` when installing,
+  because you definitely do not want to overwrite the system version
+  (you could break many Apple programs), and you must use `-U`, to
+  tell pip to perform an upgrade.
+
+* Do _not_ build this with the Xcode app, since it will place built
+  products in ~/Library/Developer/Xcode/DerivedData/, instead of
+  building things relative to the project path.
 
 Testing
 -------
 
-    ./example.py
+    ./bandsh Band
 
 Voila.
- 
  
