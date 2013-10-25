@@ -41,7 +41,7 @@ class BandCmd(cmd.Cmd):
         action='store_true',
         help='Keep the LED on after sampling.')
     hrs_parser.add_argument(
-        '--discard',
+        '-d', '--discard',
         type=int,
         default=200,
         help='Discard DISCARD number of samples after the LED turns on. Defaults to 200.')
