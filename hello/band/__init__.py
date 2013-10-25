@@ -67,12 +67,13 @@ class Band(object):
         log.debug("Sending %s" % repr(command))
         self.control.write_confirm(command)
 
-    def hrs2_start(self, power_level, delay, samples, discard_samples, inpsel_mode, refsel_mode, keep_the_lights_on):
+    def hrs2_start(self, power_level, delay, samples, discard_samples, inpsel_mode, refsel_mode, keep_the_lights_on, discard_threshold):
         assert inpsel_mode in [ADC_PRESCALE_NONE, ADC_PRESCALE_NONE, ADC_PRESCALE_ONE_THIRD, ADC_PRESCALE_TWO_THIRDS, ADC_PRESCALE_SUPPLY_ONE_THIRD, ADC_PRESCALE_SUPPLY_TWO_THIRDS]
         assert refsel_mode in [ADC_REFERENCE_VBG, ADC_REFERENCE_EXTERNAL, ADC_REFERENCE_SUPPLY_ONE_HALF, ADC_REFERENCE_SUPPLY_ONE_THIRD]
+        assert 0 <= discard_threshold <= 255
 
         command = bytearray(struct.pack(
-            '<BBHHHBBB', CMD_START_HRS2, power_level, delay, samples, discard_samples, inpsel_mode, refsel_mode, keep_the_lights_on))
+            '<BBHHHBBBB', CMD_START_HRS2, power_level, delay, samples, discard_samples, inpsel_mode, refsel_mode, keep_the_lights_on, discard_threshold))
         log.debug("Sending %s" % repr(command))
         self.control.write_confirm(command)
 

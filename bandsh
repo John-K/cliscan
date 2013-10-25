@@ -56,6 +56,11 @@ class BandCmd(cmd.Cmd):
         default=hello.band.ADC_REFERENCE_VBG,
         help='ADC reference. Must be one of 0 (use internal 1.2V bandgap voltage), 1 (use external source), 2 (use supply voltage with 1/2 prescaling), 3 (use supply voltage with 1/3 prescaling). Defaults to 0.')
     hrs_parser.add_argument(
+        '-t', '--discard-threshold',
+        type=int,
+        default=255,
+        help='Discard threshold, between [0, 255]. After DISCARD number of samples are read, all values are ignored until a value is encountered that is <= DISCARD_THRESHOLD. e.g. If this parameter is 5, values are continuously ignored until a value less than or equal to 5 is read, at which point the real sampling starts. Defaults to 255 (i.e. no threshold), where all values immediately after DISCARD number of samples are read.')
+    hrs_parser.add_argument(
         'delay',
         type=int,
         nargs='?',
@@ -90,7 +95,7 @@ class BandCmd(cmd.Cmd):
 
         output_path = os.path.join('research', self._csv_basename(power_level, sample_count, delay))
 
-        self.band.hrs2_start(power_level, delay, sample_count, arguments.discard, arguments.adc_input, arguments.adc_reference, arguments.led)
+        self.band.hrs2_start(power_level, delay, sample_count, arguments.discard, arguments.adc_input, arguments.adc_reference, arguments.led, arguments.discard_threshold)
         data = self.band.hrs_read(sample_count)
 
         file = open(output_path, 'w' if arguments.overwrite else 'a')
