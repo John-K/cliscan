@@ -29,11 +29,11 @@ class BandCmd(cmd.Cmd):
         action='store_true',
         help='Overwrite the output CSV file, instead of appending to it. (See below')
     hrs_parser.add_argument(
-        'power_level', 
+        'power_level',
         type=int,
         help='from [0, 100]. The higher this number, the brighter the LED will be.')
     hrs_parser.add_argument(
-        'samples', 
+        'samples',
         type=int,
         help='the number of samples to take. The sampling rate is fixed at 100Hz, so 100 samples = 1 second.')
     hrs_parser.add_argument(
@@ -67,7 +67,7 @@ class BandCmd(cmd.Cmd):
         return '%s.%s.%02u.%03u.%04u.csv' % (
             self.band.name,
             self.start_time.strftime('%Y%m%d.%H%M%S'),
-            power_level, 
+            power_level,
             sample_count,
             delay)
 
@@ -126,12 +126,12 @@ class BandCmd(cmd.Cmd):
 
         cwd = os.getcwd()
         research_path = os.path.join(
-            os.path.dirname(__file__), 
+            os.path.dirname(__file__),
             'research')
         os.chdir(research_path)
         csv_path = self._csv_basename(
-            arguments.power_level, 
-            arguments.samples, 
+            arguments.power_level,
+            arguments.samples,
             arguments.delay)
 
         peak_detect_cmd = 'tail -%u %s | python peak_detect.py %s100' % (
