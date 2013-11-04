@@ -22,17 +22,6 @@ STATE_IDLE = 0x66
 IMU_PACKET_SIZE = 12
 IMU_SAMPLES = 480
 
-ADC_PRESCALE_NONE = 0x0
-ADC_PRESCALE_TWO_THIRDS = 0x1
-ADC_PRESCALE_ONE_THIRD = 0x2
-ADC_PRESCALE_SUPPLY_TWO_THIRDS = 0x5
-ADC_PRESCALE_SUPPLY_ONE_THIRD = 0x6
-
-ADC_REFERENCE_VBG = 0x0
-ADC_REFERENCE_EXTERNAL = 0x1
-ADC_REFERENCE_SUPPLY_ONE_HALF = 0x2
-ADC_REFERENCE_SUPPLY_ONE_THIRD = 0x3
-
 class UUID:
     class SERVICE:
         #DEBUG = '1337'
@@ -67,13 +56,11 @@ class Band(object):
         log.debug("Sending %s" % repr(command))
         self.control.write_confirm(command)
 
-    def hrs2_start(self, power_level, delay, samples, discard_samples, inpsel_mode, refsel_mode, keep_the_lights_on, discard_threshold):
-        assert inpsel_mode in [ADC_PRESCALE_NONE, ADC_PRESCALE_NONE, ADC_PRESCALE_ONE_THIRD, ADC_PRESCALE_TWO_THIRDS, ADC_PRESCALE_SUPPLY_ONE_THIRD, ADC_PRESCALE_SUPPLY_TWO_THIRDS]
-        assert refsel_mode in [ADC_REFERENCE_VBG, ADC_REFERENCE_EXTERNAL, ADC_REFERENCE_SUPPLY_ONE_HALF, ADC_REFERENCE_SUPPLY_ONE_THIRD]
+    def hrs2_start(self, power_level, delay, samples, discard_samples, keep_the_lights_on, discard_threshold):
         assert 0 <= discard_threshold <= 255
 
         command = bytearray(struct.pack(
-            '<BBHHHBBBB', CMD_START_HRS2, power_level, delay, samples, discard_samples, inpsel_mode, refsel_mode, keep_the_lights_on, discard_threshold))
+            '<BBHHHBB', CMD_START_HRS2, power_level, delay, samples, discard_samples, keep_the_lights_on, discard_threshold))
         log.debug("Sending %s" % repr(command))
         self.control.write_confirm(command)
 
