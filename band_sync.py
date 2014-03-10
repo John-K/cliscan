@@ -108,30 +108,44 @@ def main(argv):
     print "Wrote 0x02 to 0xDEED"
 
     packets = [bytearray()] * 15
-    expected_size = None
+    expected_packets = 0
+    received_packets = 0
 
     while True:
         data = data_subscription.read()
+
         print "Received %d bytes: %r" % (len(data), data)
+        received_packets += 1
 
         sequence_number = data[0]
         if sequence_number == 0:
             print "Got header packet"
-            (expected_size, ) = struct.unpack('<H', data[1:3])
-            packet = data[3:]
+
+            expected_packets = data[1]
+            packets = packets[:expected_packets]
+
+            packet = data[2:]
         else:
             packet = data[1:]
 
         packets[sequence_number] = packet
 
-        received_size = sum(len(b) for b in packets)
-        print "Received %d of %d bytes" % (received_size, expected_size)
-        if received_size == expected_size:
-            # last packet received; now remove SHA-1 from data packets and compute it
-            # packets[-1] = bytearray()
+        print "Received %d of %d packets" % (received_packets, expected_packets)
+        if received_packets == expected_packets:
+            # last packet received; now remove SHA-1 from packets and compute it
+            all_data = reduce(lambda lhs, rhs: lhs+rhs, packets[0:expected_packets-1])
 
-            final_packets = reduce(lambda lhs, rhs: lhs+rhs, packets)
-            print "Final: %r" % final_packets
+            actual_sha1 = bytearray(sha.new(all_data).digest()[0:19])
+
+            expected_sha1 = packets[-1]
+
+            print "Actual SHA-1: %r" % actual_sha1
+            print "Expected SHA-1: %r" % expected_sha1
+
+            if actual_sha1 == expected_sha1:
+                print "Data integrity verified."
+            else:
+                print "Uh oh"
 
             break
 
